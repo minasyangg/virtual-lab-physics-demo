@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Виртуальная лаба №1 — Цена деления шкалы</title>
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.6.6/pixi.min.js"></script>
 </head>
 <body>
 <div class="sheet" id="app">Загрузка лабораторной работы...</div>
 
 <script src="engine.js"></script>
+<script src="engine/draw.js"></script>
+<script src="engine/scene.js"></script>
+<script src="engine/widgets/ruler.js"></script>
+<script src="engine/widgets/cylinder.js"></script>
 <script>
-const { mulberry32, getVariantSeed, loadLabSchema, saveProgress, loadProgress, renderRuler, renderCylinder } = window.LabEngine;
+const { getVariantSeed, loadLabSchema, saveProgress, loadProgress } = window.LabEngine;
 
 const seed = getVariantSeed();
 let lab, state = { table11: {}, table12: {}, table13: {} };
@@ -44,7 +49,8 @@ function render() {
 
     <div class="section">
       <span class="bar">Задание 1. Работа с линейкой</span>
-      <div id="task1"></div>
+      <p class="small-note">Возьмите предмет со стола и приложите его к линейке — начало и конец измерения нужно совместить со штрихами шкалы самостоятельно.</p>
+      <div class="scene-wrap"><div id="scene-task1" class="scene-box"></div></div>
       <table id="table11">
         <thead><tr><th>Линейка</th><th>Цена деления, см</th>
         ${lab.objects.map((o,i)=>`<th>Длина l${i+1} (${o.name}), см</th>`).join('')}
@@ -82,8 +88,12 @@ function render() {
         </div>
       </div>
       <div class="step">
-        <div class="instr"><span class="badge-num">2</span>Перелейте воду из стакана в измерительный цилиндр и определите положение уровня воды по шкале (глаз — на уровне мениска).</div>
-        <div class="widget-box"><div id="cyl-widget" class="cylinder-wrap"></div></div>
+        <div class="instr"><span class="badge-num">2</span>Возьмите мензурку и поднимите её к отмеченному уровню глаз — только там деления не искажены параллаксом. Определите положение уровня воды по нижней точке мениска.</div>
+        <div class="scene-wrap"><div id="scene-task2" class="scene-box"></div></div>
+        <div class="widget-box">
+          <label>Ваше показание уровня (мл): <input type="number" step="0.1" style="width:80px" id="cyl-read"></label>
+          <span class="status" id="cyl-status"></span>
+        </div>
       </div>
       <span class="bar">Таблица 1.3 — объём жидкости в разных сосудах</span>
       <table>
@@ -105,8 +115,8 @@ function render() {
     </div>
   `;
 
-  buildTask1();
-  buildCylinderTask();
+  buildTask1Scene();
+  buildTask2Scene();
 
   document.getElementById('save-btn').addEventListener('click', () => {
     state.conclusion = document.getElementById('conclusion').value;
@@ -115,58 +125,86 @@ function render() {
   });
 }
 
-function buildTask1() {
-  const container = document.getElementById('task1');
-  lab.rulers.forEach((ruler) => {
-    const row = document.querySelector(`tr[data-ruler="${ruler.id}"]`);
-    row.querySelector('.cena').textContent = ruler.divisionCm.toFixed(1);
+async function buildTask1Scene() {
+  const el = document.getElementById('scene-task1');
+  const rng = LabEngine.mulberry32(seed + 1);
+  const scene = await LabScene.createScene(el, { height: 320 });
+  if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugScene1 = scene;
+
+  LabRulerWidget.attachRulerTask(lab, scene, rng, (rulerId, objIndex, measuredCm, bounds) => {
+    const ruler = lab.rulers.find(r => r.id === rulerId);
     const pogr = ruler.divisionCm / 2;
+    const row = document.querySelector(`tr[data-ruler="${rulerId}"]`);
+    row.querySelector('.cena').textContent = ruler.divisionCm.toFixed(2);
     row.querySelector('.pogr').textContent = '±' + pogr.toFixed(2);
+    row.querySelector(`.l${objIndex+1}`).textContent = measuredCm.toFixed(2);
 
-    lab.objects.forEach((obj, i) => {
-      const stepDiv = document.createElement('div');
-      stepDiv.className = 'step';
-      stepDiv.innerHTML = `<div class="instr"><span class="badge-num">${i+1}</span>Линейка ${ruler.label}: измерьте «${obj.name}».</div>
-        <div class="widget-box" id="ruler-${ruler.id}-${i}"></div>`;
-      container.appendChild(stepDiv);
-
-      const rngLocal = mulberry32(seed + ruler.id.charCodeAt(1) * 100 + i);
-      renderRuler(document.getElementById(`ruler-${ruler.id}-${i}`), ruler, obj.trueLength, rngLocal, (measured) => {
-        row.querySelector(`.l${i+1}`).textContent = measured.toFixed(1);
-        const t12cell = document.querySelector(`.t12[data-ruler="${ruler.id}"][data-obj="${i}"]`);
-        t12cell.textContent = `${measured.toFixed(1)} ± ${pogr.toFixed(2)} см`;
-      });
-    });
+    const t12cell = document.querySelector(`.t12[data-ruler="${rulerId}"][data-obj="${objIndex}"]`);
+    if (t12cell) t12cell.textContent = `${measuredCm.toFixed(2)} ± ${pogr.toFixed(2)} см`;
   });
 }
 
-function buildCylinderTask() {
-  const cylWidget = document.getElementById('cyl-widget');
-  const trueDiv = lab.cylinder.divisionMl;
+async function buildTask2Scene() {
+  const el = document.getElementById('scene-task2');
+  const rng = LabEngine.mulberry32(seed + 999);
+  const scene = await LabScene.createScene(el, { height: 260 });
+  if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugScene2 = scene;
+
   const divInput = document.getElementById('cyl-division');
   const divStatus = document.getElementById('cyl-division-status');
   divInput.addEventListener('input', () => {
     const v = parseFloat(divInput.value);
-    if (!isNaN(v) && Math.abs(v - trueDiv) < 0.05) {
+    if (!isNaN(v) && Math.abs(v - lab.cylinder.divisionMl) < 0.05) {
       divStatus.textContent = '✓ верно'; divStatus.className = 'status ok';
     } else if (!isNaN(v)) {
       divStatus.textContent = '✗ пересчитайте'; divStatus.className = 'status bad';
     }
   });
 
-  renderCylinder(cylWidget, lab.cylinder, lab.cylinder.trueLevelMl, mulberry32(seed + 999), () => {});
+  const readInput = document.getElementById('cyl-read');
+  const readStatus = document.getElementById('cyl-status');
+  let cylinderAligned = false;
+
+  readInput.addEventListener('input', () => {
+    const v = parseFloat(readInput.value);
+    const tolerance = lab.cylinder.divisionMl;
+    if (isNaN(v)) { readStatus.textContent = ''; return; }
+    if (!cylinderAligned) {
+      readStatus.textContent = '↕ поднимите мензурку к уровню глаз для точного отсчёта';
+      readStatus.className = 'status bad';
+      return;
+    }
+    if (Math.abs(v - lab.cylinder.trueLevelMl) <= tolerance) {
+      readStatus.textContent = '✓ верно (в пределах точности прибора)';
+      readStatus.className = 'status ok';
+    } else {
+      readStatus.textContent = '✗ проверьте отсчёт по мениску';
+      readStatus.className = 'status bad';
+    }
+  });
+
+  LabCylinderWidget.attachCylinderTask(lab, scene, rng, {
+    onCylinderMove(aligned) { cylinderAligned = aligned; },
+    onCylinderSettled(aligned) {
+      cylinderAligned = aligned;
+      readInput.dispatchEvent(new Event('input'));
+    },
+  });
 
   lab.vessels.forEach((v, i) => {
     const cell = document.querySelector(`.vessel-val[data-idx="${i}"]`);
     const wrap = document.createElement('div');
-    wrap.style.marginTop = '10px';
+    wrap.className = 'widget-box';
+    wrap.style.marginTop = '8px';
+    const label = document.createElement('label');
+    label.textContent = `Сосуд «${v.name}», ваш отсчёт после переливания в мензурку (± ${lab.cylinder.divisionMl/2} мл): `;
     const input = document.createElement('input');
-    input.type = 'text'; input.placeholder = `объём сосуда ${i+1}, мл`;
-    input.style.width = '160px';
+    input.type = 'text'; input.placeholder = `объём, мл`;
+    input.style.width = '100px';
     input.addEventListener('input', () => { cell.textContent = input.value; });
-    document.getElementById('cyl-widget').parentElement.appendChild(wrap);
-    wrap.innerHTML = `<label>Сосуд «${v.name}», ваш отсчёт (± ${lab.cylinder.divisionMl/2} мл): </label>`;
-    wrap.appendChild(input);
+    label.appendChild(input);
+    wrap.appendChild(label);
+    document.querySelector('#scene-task2').parentElement.appendChild(wrap);
   });
 }
 

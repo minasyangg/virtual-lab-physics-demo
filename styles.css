@@ -29,6 +29,9 @@ button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding
 button:hover{background:var(--purple);}
 button.secondary{background:#fff;color:var(--accent);border:1px solid var(--accent);}
 .ruler-svg-wrap{overflow-x:auto;}
+.scene-wrap{margin:10px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#ece6da;}
+.scene-box{width:100%;min-height:260px;touch-action:none;}
+.scene-box canvas{display:block;width:100%;}
 .result-line{margin-top:8px;font-size:.9rem;}
 .result-line .val{font-weight:700;color:var(--purple-dark);}
 .status{font-size:.85rem;font-weight:600;margin-left:8px;}
