@@ -111,6 +111,26 @@
     };
   }
 
-  window.LabScene = { createScene, makeDraggable };
+  // ---- Плавная анимация уровня воды -------------------------------------
+  // Анимирует water.setLevel(frac) от текущего значения к targetFrac за
+  // durationMs, используя тикер приложения. Используется для переливания
+  // (мензурка/сосуд наполняется или пустеет плавно, а не скачком).
+  // onComplete вызывается один раз по завершении.
+  function tweenWaterLevel(app, water, fromFrac, targetFrac, durationMs, onComplete) {
+    const start = performance.now();
+    function step() {
+      const t = Math.min(1, (performance.now() - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 2); // ease-out — быстрее в начале, плавно замедляется
+      water.setLevel(fromFrac + (targetFrac - fromFrac) * eased);
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else if (onComplete) {
+        onComplete();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  window.LabScene = { createScene, makeDraggable, tweenWaterLevel };
 
 })();

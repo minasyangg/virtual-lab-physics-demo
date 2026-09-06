@@ -49,6 +49,11 @@ textarea{width:100%;min-height:70px;border:1px solid var(--border);border-radius
 .view-angle-label{display:flex;align-items:center;gap:10px;font-size:.9rem;}
 .view-angle-label input[type="range"]{flex:1;max-width:320px;}
 .view-angle-ticks{display:flex;justify-content:space-between;max-width:330px;margin-top:2px;font-size:.75rem;color:#777;}
+.scene-with-callout{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}
+.scene-wrap-main{flex:2 1 420px;margin:10px 0;}
+.scene-wrap-callout{flex:1 1 200px;margin:10px 0;}
+.scene-wrap-callout .scene-box{min-height:150px;}
+.callout-caption{padding:0 10px 10px;margin-top:0;}
 .link-row{margin-top:10px;font-size:.85rem;}
 .link-row a{color:var(--accent);text-decoration:none;font-weight:600;}
 .link-row a:hover{text-decoration:underline;}

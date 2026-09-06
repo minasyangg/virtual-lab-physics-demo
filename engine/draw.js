@@ -228,7 +228,10 @@
       const w = width, h = height;
       const waterH = h * frac;
       const top = h - waterH;
-      // прогиб истинного мениска (всегда вогнутый — смачивание стекла)
+      // Прогиб истинного мениска: вода смачивает стекло, поэтому у стенок
+      // сосуда поверхность подтягивается ВВЕРХ (меньший Y), а в центре
+      // остаётся ниже (больший Y) — вогнутая «ложка». Читать положено по
+      // нижней точке в центре, а не по краям, которые кажутся выше.
       const meniscusDepth = Math.min(6, w * 0.05);
       // Параллакс сдвигает ВСЮ видимую линию (включая края у шкалы, где
       // и происходит считывание) — не только центр сосуда. Именно край,
@@ -237,8 +240,8 @@
       // Смотрим сверху (viewAngle<0) — видимая линия «приподнимается»
       // (кажется, что уровень выше истинного); снизу — «опускается».
       const parallaxShift = viewAngle * Math.min(24, h * 0.12);
-      const edgeY = top + meniscusDepth + parallaxShift;
-      const centerY = top - meniscusDepth * 0.6 + parallaxShift * 1.4;
+      const edgeY = top - meniscusDepth + parallaxShift;
+      const centerY = top + meniscusDepth * 0.6 + parallaxShift * 1.4;
 
       if (waterH <= 0.5) return;
 
