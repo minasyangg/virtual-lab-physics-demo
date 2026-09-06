@@ -74,7 +74,10 @@
       start = { x: p.x, y: p.y };
       origin = { x: target.x, y: target.y };
       target.parent.addChild(target); // поднять поверх остальных объектов слоя
-      target.scale.set(baseScale * 1.06);
+      // Лёгкое увеличение — едва заметное «взял в руку», но не настолько
+      // сильное, чтобы сместить видимые края предмета относительно шкалы
+      // и мешать точному прицеливанию (это измерительный инструмент, не игра).
+      target.scale.set(baseScale * 1.02);
       if (target._labShadow) target._labShadow.alpha = 1.4;
       if (callbacks.onDragStart) callbacks.onDragStart(target);
     });

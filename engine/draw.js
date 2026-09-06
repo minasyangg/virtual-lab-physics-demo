@@ -132,16 +132,12 @@
     return c;
   }
 
-  // ---- Стеклянный сосуд ----------------------------------------------------
-  // Рисует только стенки/дно сосуда (без воды — вода рисуется отдельно
-  // функцией drawWater, чтобы её можно было анимировать независимо).
-  // shape: 'cylinder' | 'flask' | 'tube'
-  function drawGlass(width, height, shape) {
-    shape = shape || 'cylinder';
-    const c = new PIXI.Container();
-    const g = new PIXI.Graphics();
-    const w = width, h = height;
-
+  // ---- Контур сосуда --------------------------------------------------------
+  // Строит путь контура на переданном PIXI.Graphics — переиспользуется и для
+  // видимого стекла (drawGlass), и для маски воды (drawWater), чтобы жидкость
+  // никогда не могла нарисоваться за пределами непрямоугольных стенок сосуда
+  // (сужение горлышка колбы, закруглённое дно пробирки).
+  function traceVesselOutline(g, w, h, shape) {
     if (shape === 'flask') {
       // колба: узкое горлышко + расширяющаяся коническая часть
       const neckW = w * 0.28, neckH = h * 0.22;
@@ -169,7 +165,19 @@
       g.lineTo(w, h * 0.03);
       g.closePath();
     }
+  }
 
+  // ---- Стеклянный сосуд ----------------------------------------------------
+  // Рисует только стенки/дно сосуда (без воды — вода рисуется отдельно
+  // функцией drawWater, чтобы её можно было анимировать независимо).
+  // shape: 'cylinder' | 'flask' | 'tube'
+  function drawGlass(width, height, shape) {
+    shape = shape || 'cylinder';
+    const c = new PIXI.Container();
+    const g = new PIXI.Graphics();
+    const w = width, h = height;
+
+    traceVesselOutline(g, w, h, shape);
     g.fill({ color: 0xdfeaf2, alpha: 0.22 });
     g.stroke({ width: 2, color: 0x9db3c2, alpha: 0.85 });
 
@@ -187,49 +195,81 @@
 
   // ---- Вода с изогнутым мениском -------------------------------------------
   // levelFrac: 0 (пусто) .. 1 (полный сосуд), считая от дна.
-  // Возвращает контейнер; свойство .setLevel(frac) позволяет анимировать
-  // изменение уровня без пересоздания объекта.
+  // viewAngle: -1 (смотрим сверху вниз) .. 0 (взгляд на уровне мениска,
+  //   верно) .. 1 (смотрим снизу вверх) — управляет кажущимся искажением
+  //   формы поверхности воды из-за параллакса, не меняя истинный levelFrac.
+  // Возвращает контейнер; свойства .setLevel(frac) и .setViewAngle(angle)
+  // позволяют анимировать оба параметра без пересоздания объекта. Форма
+  // воды всегда обрезается маской по контуру сосуда (traceVesselOutline),
+  // поэтому не может нарисоваться за пределами стенок — важно для узкого
+  // горлышка колбы и скруглённого дна пробирки.
   function drawWater(width, height, levelFrac, shape) {
     shape = shape || 'cylinder';
     const c = new PIXI.Container();
     const g = new PIXI.Graphics();
     c.addChild(g);
 
-    function render(frac) {
+    const mask = new PIXI.Graphics();
+    traceVesselOutline(mask, width, height, shape);
+    mask.fill(0xffffff);
+    c.addChild(mask);
+    c.mask = mask;
+
+    let currentAngle = 0;
+    let currentFrac = levelFrac;
+
+    function render(frac, viewAngle) {
+      if (frac === undefined) frac = currentFrac;
+      if (viewAngle === undefined) viewAngle = currentAngle;
+      currentFrac = frac;
+      currentAngle = viewAngle;
       g.clear();
       frac = Math.max(0, Math.min(1, frac));
       const w = width, h = height;
       const waterH = h * frac;
       const top = h - waterH;
-      const meniscusDepth = Math.min(6, w * 0.05); // прогиб мениска у центра
+      // прогиб истинного мениска (всегда вогнутый — смачивание стекла)
+      const meniscusDepth = Math.min(6, w * 0.05);
+      // Параллакс сдвигает ВСЮ видимую линию (включая края у шкалы, где
+      // и происходит считывание) — не только центр сосуда. Именно край,
+      // ближний к шкале, и определяет «показание», которое видит ученик,
+      // поэтому эффект должен быть заметен там, а не спрятан в середине.
+      // Смотрим сверху (viewAngle<0) — видимая линия «приподнимается»
+      // (кажется, что уровень выше истинного); снизу — «опускается».
+      const parallaxShift = viewAngle * Math.min(24, h * 0.12);
+      const edgeY = top + meniscusDepth + parallaxShift;
+      const centerY = top - meniscusDepth * 0.6 + parallaxShift * 1.4;
 
       if (waterH <= 0.5) return;
 
-      // тело воды: прямоугольник (с учётом сужения пробирки понизу не паримся —
-      // на масштабе одного деления это визуально несущественно)
+      // тело воды — по прямоугольнику, реальный контур сосуда обрежет
+      // маска, так что сужение горлышка/скруглённое дно всегда соблюдены
       g.moveTo(0, h);
-      g.lineTo(0, top + meniscusDepth);
-      // вогнутая кривая мениска: ниже у стенок, чуть выше (заметнее) в центре —
-      // именно так выглядит смачивающая стекло жидкость снизу вверх при взгляде
-      g.quadraticCurveTo(w / 2, top - meniscusDepth * 0.6, w, top + meniscusDepth);
+      g.lineTo(0, edgeY);
+      g.quadraticCurveTo(w / 2, centerY, w, edgeY);
       g.lineTo(w, h);
       g.closePath();
       g.fill({ color: 0x6fb3e0, alpha: 0.55 });
 
-      // тонкая более светлая линия по кромке мениска — ориентир для считывания
-      g.moveTo(0, top + meniscusDepth);
-      g.quadraticCurveTo(w / 2, top - meniscusDepth * 0.6, w, top + meniscusDepth);
+      // тонкая более светлая линия по кромке кажущейся поверхности —
+      // ориентир для считывания (то, что реально видит ученик)
+      g.moveTo(0, edgeY);
+      g.quadraticCurveTo(w / 2, centerY, w, edgeY);
       g.stroke({ width: 1.5, color: 0x2a6fa0, alpha: 0.9 });
     }
 
-    render(levelFrac);
-    c.setLevel = render;
+    render(levelFrac, 0);
+    c.setLevel = (frac) => render(frac, undefined);
+    c.setViewAngle = (angle) => render(undefined, angle);
     return c;
   }
 
   // ---- Шкала с делениями (общая для линейки и мензурки) --------------------
   // orientation: 'horizontal' | 'vertical'
-  // params: { lengthPx, minVal, maxVal, divisionVal, majorEvery }
+  // params: { lengthPx, minVal, maxVal, divisionVal, majorEvery, flip }
+  // flip: true разворачивает направление отсчёта (для вертикальной шкалы —
+  //   максимум сверху, как на мензурке) БЕЗ переворота самого контейнера —
+  //   иначе текстовые подписи делений отражались бы вверх ногами.
   function drawScale(params) {
     const {
       lengthPx, minVal, maxVal, divisionVal,
@@ -237,6 +277,7 @@
       majorEvery = 5,
       color = 0x3d2b6e,
       fontSize = 10,
+      flip = false,
     } = params;
 
     const c = new PIXI.Container();
@@ -248,7 +289,7 @@
       const val = minVal + i * divisionVal;
       const isMajor = Math.round(val / divisionVal) % majorEvery === 0;
       const tickLen = isMajor ? 14 : 8;
-      const pos = i * pxPerDiv;
+      const pos = flip ? lengthPx - i * pxPerDiv : i * pxPerDiv;
 
       if (orientation === 'horizontal') {
         g.moveTo(pos, 0);

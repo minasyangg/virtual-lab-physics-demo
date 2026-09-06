@@ -81,9 +81,12 @@
   // onMeasured(rulerId, objIndex, measuredCm): колбэк — вызывается при
   //   каждом изменении положения предмета относительно линейки (в т.ч.
   //   при отпускании), для заполнения таблиц 1.1/1.2.
+  // Возвращает { resetAll() } — возвращает все предметы на исходные
+  // позиции (таблицы 1.1/1.2 очищает вызывающий код в index.html).
   function attachRulerTask(lab, scene, rng, onMeasured) {
     const { app, layers, width } = scene;
     const rulerBuilds = [];
+    const objects = [];
 
     // Две линейки — одна над другой в верхней части стола.
     lab.rulers.forEach((ruler, i) => {
@@ -108,7 +111,10 @@
       const startX = 24 + rng() * Math.max(0, maxStartX - 24);
       const startY = objRow + (i % 2) * rowHeight;
       objContainer.position.set(startX, startY);
+      objContainer._labStartX = startX;
+      objContainer._labStartY = startY;
       layers.objects.addChild(objContainer);
+      objects.push(objContainer);
 
       function evaluateAgainstAllRulers() {
         rulerBuilds.forEach((rb, rIdx) => {
@@ -134,6 +140,14 @@
         onDragEnd: evaluateAgainstAllRulers,
       });
     });
+
+    return {
+      resetAll() {
+        objects.forEach((objContainer) => {
+          objContainer.position.set(objContainer._labStartX, objContainer._labStartY);
+        });
+      },
+    };
   }
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }

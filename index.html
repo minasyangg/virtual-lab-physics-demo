@@ -76,6 +76,7 @@ function render() {
           </tr>`).join('')}
         </tbody>
       </table>
+      <div class="no-print"><button class="secondary" id="reset-task1-btn">Сбросить задание 1</button></div>
     </div>
 
     <div class="section">
@@ -88,8 +89,15 @@ function render() {
         </div>
       </div>
       <div class="step">
-        <div class="instr"><span class="badge-num">2</span>Возьмите мензурку и поднимите её к отмеченному уровню глаз — только там деления не искажены параллаксом. Определите положение уровня воды по нижней точке мениска.</div>
+        <div class="instr"><span class="badge-num">2</span>Перелейте воду из стакана в мензурку и определите положение уровня воды по нижней точке мениска. Двигайте ползунок «угол взгляда» — только когда взгляд направлен точно на уровень мениска, отсчёт верен; сверху или снизу шкала кажется смещённой.</div>
         <div class="scene-wrap"><div id="scene-task2" class="scene-box"></div></div>
+        <div class="widget-box">
+          <label class="view-angle-label">
+            Угол взгляда:
+            <input type="range" id="cyl-view-angle" min="-100" max="100" value="0" step="1">
+          </label>
+          <div class="view-angle-ticks"><span>сверху вниз</span><span>на уровне глаз</span><span>снизу вверх</span></div>
+        </div>
         <div class="widget-box">
           <label>Ваше показание уровня (мл): <input type="number" step="0.1" style="width:80px" id="cyl-read"></label>
           <span class="status" id="cyl-status"></span>
@@ -102,6 +110,7 @@ function render() {
           ${lab.vessels.map((v,i)=>`<tr><td>${i+1}. ${v.name}</td><td class="vessel-val" data-idx="${i}"></td></tr>`).join('')}
         </tbody>
       </table>
+      <div class="no-print"><button class="secondary" id="reset-task2-btn">Сбросить задание 2</button></div>
     </div>
 
     <div class="section">
@@ -131,7 +140,7 @@ async function buildTask1Scene() {
   const scene = await LabScene.createScene(el, { height: 320 });
   if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugScene1 = scene;
 
-  LabRulerWidget.attachRulerTask(lab, scene, rng, (rulerId, objIndex, measuredCm, bounds) => {
+  const widget = LabRulerWidget.attachRulerTask(lab, scene, rng, (rulerId, objIndex, measuredCm, bounds) => {
     const ruler = lab.rulers.find(r => r.id === rulerId);
     const pogr = ruler.divisionCm / 2;
     const row = document.querySelector(`tr[data-ruler="${rulerId}"]`);
@@ -141,6 +150,11 @@ async function buildTask1Scene() {
 
     const t12cell = document.querySelector(`.t12[data-ruler="${rulerId}"][data-obj="${objIndex}"]`);
     if (t12cell) t12cell.textContent = `${measuredCm.toFixed(2)} ± ${pogr.toFixed(2)} см`;
+  });
+
+  document.getElementById('reset-task1-btn').addEventListener('click', () => {
+    widget.resetAll();
+    document.querySelectorAll('#table11 td:not(:first-child), .t12').forEach(el => { el.textContent = ''; });
   });
 }
 
@@ -163,6 +177,7 @@ async function buildTask2Scene() {
 
   const readInput = document.getElementById('cyl-read');
   const readStatus = document.getElementById('cyl-status');
+  const viewAngleInput = document.getElementById('cyl-view-angle');
   let cylinderAligned = false;
 
   readInput.addEventListener('input', () => {
@@ -170,7 +185,7 @@ async function buildTask2Scene() {
     const tolerance = lab.cylinder.divisionMl;
     if (isNaN(v)) { readStatus.textContent = ''; return; }
     if (!cylinderAligned) {
-      readStatus.textContent = '↕ поднимите мензурку к уровню глаз для точного отсчёта';
+      readStatus.textContent = '↕ выставьте ползунок «угол взгляда» точно на уровень глаз для верного отсчёта';
       readStatus.className = 'status bad';
       return;
     }
@@ -183,14 +198,18 @@ async function buildTask2Scene() {
     }
   });
 
-  LabCylinderWidget.attachCylinderTask(lab, scene, rng, {
-    onCylinderMove(aligned) { cylinderAligned = aligned; },
-    onCylinderSettled(aligned) {
+  const cylWidget = LabCylinderWidget.attachCylinderTask(lab, scene, rng, {
+    onViewAngleChange(angle, aligned) {
       cylinderAligned = aligned;
       readInput.dispatchEvent(new Event('input'));
     },
   });
 
+  viewAngleInput.addEventListener('input', () => {
+    cylWidget.setViewAngle(parseFloat(viewAngleInput.value) / 100);
+  });
+
+  const vesselInputs = [];
   lab.vessels.forEach((v, i) => {
     const cell = document.querySelector(`.vessel-val[data-idx="${i}"]`);
     const wrap = document.createElement('div');
@@ -205,6 +224,17 @@ async function buildTask2Scene() {
     label.appendChild(input);
     wrap.appendChild(label);
     document.querySelector('#scene-task2').parentElement.appendChild(wrap);
+    vesselInputs.push({ input, cell });
+  });
+
+  document.getElementById('reset-task2-btn').addEventListener('click', () => {
+    cylWidget.resetAll();
+    viewAngleInput.value = 0;
+    divInput.value = '';
+    divStatus.textContent = '';
+    readInput.value = '';
+    readStatus.textContent = '';
+    vesselInputs.forEach(({ input, cell }) => { input.value = ''; cell.textContent = ''; });
   });
 }
 

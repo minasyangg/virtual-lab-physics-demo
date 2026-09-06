@@ -1,17 +1,20 @@
 // engine/widgets/cylinder.js
 // Виджет «Задание 2»: мензурка и сосуды с водой на столе.
-// Ученик берёт сосуд и поднимает его к «уровню глаз» (вертикальному
-// положению на сцене, отмеченному пунктирной линией) — только там
-// деления шкалы не искажены параллаксом и уровень воды можно считать
-// точно. Ниже или выше этой линии шкала визуально «съезжает»,
-// имитируя ошибку параллакса при взгляде не перпендикулярно мениску.
+// Мензурка стоит неподвижно (как в жизни она стоит на столе) — угол
+// взгляда ученика на неё регулируется отдельным слайдером «сверху /
+// на уровне глаз / снизу», а не перетаскиванием самого сосуда. При
+// уходе от «уровня глаз» видимая форма поверхности воды искажается —
+// это и есть параллакс, который методичка описывает словами «глаз на
+// уровне мениска», здесь его видно напрямую.
+//
+// Дополнительные сосуды (колба, пробирка — задание 1.3) остаются
+// перетаскиваемыми: это переливание в мензурку, а не считывание по
+// шкале, параллакс там не проверяется.
 
 (function () {
 
-  const EYE_LEVEL_TOLERANCE_PX = 18; // ширина зоны, где параллакс считается нулевым
-
   // Рисует один сосуд с шкалой и водой внутри общего контейнера.
-  // vesselSpec: { minMl, maxMl, divisionMl } — параметры шкалы (для основной
+  // scaleParams: { minMl, maxMl, divisionMl } — параметры шкалы (для основной
   //   мензурки берутся из lab.cylinder; для доп. сосудов шкалы не рисуем —
   //   у них по методичке нет собственных делений, только сама мензурка мерит).
   function buildVessel(widthPx, heightPx, shape, levelFrac, scaleParams) {
@@ -38,45 +41,30 @@
         majorEvery: 5,
         color: 0x2a4a63,
         fontSize: 9,
+        flip: true, // максимум сверху, минимум снизу — как на реальной мензурке
       });
-      // шкала мензурки читается сверху вниз (верх = максимум мл)
       scale.position.set(widthPx + 2, 0);
-      scale.scale.y = -1;
-      scale.position.y = heightPx;
       container.addChild(scale);
       // Внимание: имя не должно совпадать с зарезервированными приватными
       // полями PIXI.Container (_scale и т.п.) — такое совпадение молча
-      // портит внутреннюю трансформацию контейнера и обнуляет его bounds,
-      // из-за чего перетаскивание (и любой pointer-hit-test) перестаёт
-      // работать без единой видимой ошибки в консоли.
+      // портит внутреннюю трансформацию контейнера и обнуляет его bounds.
       container._labScaleWidget = scale;
     }
 
     return container;
   }
 
-  // Подключает задание 2: мензурка (с реальной шкалой) и дополнительные
-  // сосуды (колба, пробирка — без своей шкалы, объём считывается только
-  // через переливание в мензурку, как и требует методичка).
+  // Подключает задание 2 к сцене. Возвращает { resetAll() } — сбрасывает
+  // сосуды на исходные позиции, угол взгляда на «прямо» и очищает поля
+  // ввода/таблицу 1.3, связанные с этим заданием.
   //
-  // onCylinderRead(valueMl, isAligned): вызывается при перетаскивании
-  //   мензурки — сообщает текущее визуальное «показание» с учётом
-  //   параллакса и то, выровнен ли сосуд по уровню глаз.
+  // callbacks:
+  //   onViewAngleChange(angle, aligned) — angle: -1..0..1, aligned: true
+  //     когда |angle| достаточно мал, чтобы считать отсчёт верным.
   function attachCylinderTask(lab, scene, rng, callbacks) {
-    const { app, layers, width, height } = scene;
+    callbacks = callbacks || {};
+    const { layers, width, height } = scene;
     const cyl = lab.cylinder;
-
-    const eyeLevelY = height * 0.2;
-    const eyeLine = new PIXI.Graphics();
-    eyeLine.moveTo(0, eyeLevelY);
-    eyeLine.lineTo(width, eyeLevelY);
-    eyeLine.stroke({ width: 1.5, color: 0xc0392b, alpha: 0.55 });
-    const eyeLabel = new PIXI.Text({
-      text: '👁 уровень глаз — поднимите сосуд сюда для точного отсчёта',
-      style: { fontFamily: 'Segoe UI, Arial, sans-serif', fontSize: 11, fill: 0xc0392b },
-    });
-    eyeLabel.position.set(8, eyeLevelY - 18);
-    layers.ui.addChild(eyeLine, eyeLabel);
 
     // --- Мензурка (основной измерительный прибор задания) -----------------
     const cylW = 60, cylH = 210;
@@ -86,44 +74,29 @@
     cylContainer.position.set(width * 0.72, height - 30);
     layers.objects.addChild(cylContainer);
 
-    // Выравнивание считается не по центру сосуда, а по фактическому уровню
-    // воды (мениску) внутри него — именно его нужно совместить со взглядом
-    // по методичке, а не «сосуд вообще».
-    function updateParallax(target, glassH, levelFrac) {
-      const bottomY = target.getGlobalPosition().y; // pivot сосуда — его дно
-      const waterSurfaceY = bottomY - glassH * levelFrac;
-      const dy = waterSurfaceY - eyeLevelY;
-      const aligned = Math.abs(dy) <= EYE_LEVEL_TOLERANCE_PX;
-      // визуальный сдвиг шкалы пропорционален расстоянию от уровня глаз —
-      // чем дальше от eyeLevelY, тем сильнее «съезжают» деления, имитируя
-      // ошибку параллакса при взгляде не перпендикулярно мениску
-      if (target._labScaleWidget) {
-        target._labScaleWidget.skew.x = clamp(dy * 0.006, -0.35, 0.35);
-      }
-      return { aligned, dy };
+    function setViewAngle(angle) {
+      cylContainer._labWater.setViewAngle(angle);
+      const aligned = Math.abs(angle) < 0.08;
+      if (callbacks.onViewAngleChange) callbacks.onViewAngleChange(angle, aligned);
     }
-
-    LabScene.makeDraggable(app, cylContainer, {
-      onDragMove(target) {
-        const { aligned } = updateParallax(target, cylH, cylLevelFrac);
-        if (callbacks.onCylinderMove) callbacks.onCylinderMove(aligned);
-      },
-      onDragEnd(target) {
-        const { aligned } = updateParallax(target, cylH, cylLevelFrac);
-        if (callbacks.onCylinderSettled) callbacks.onCylinderSettled(aligned);
-      },
-    });
+    setViewAngle(0);
 
     // --- Дополнительные сосуды (задание 1.3 — объём в разных ёмкостях) ----
     const vesselShapes = ['flask', 'tube', 'cylinder'];
+    const vessels = [];
     lab.vessels.forEach((v, i) => {
       const w = 48 - i * 6;
       const h = 120 - i * 18;
       const frac = 0.55 + rng() * 0.25; // визуальный уровень — реальный объём ученик определяет переливанием в мензурку
       const vc = buildVessel(w, h, vesselShapes[i % vesselShapes.length], frac, null);
       vc.pivot.set(w / 2, h);
-      vc.position.set(width * 0.15 + i * 90, height - 30);
+      const startX = width * 0.15 + i * 90;
+      const startY = height - 30;
+      vc.position.set(startX, startY);
+      vc._labStartX = startX;
+      vc._labStartY = startY;
       layers.objects.addChild(vc);
+      vessels.push(vc);
 
       const vLabel = new PIXI.Text({
         text: v.name,
@@ -133,11 +106,17 @@
       vLabel.position.set(vc.x, height - 16);
       layers.ui.addChild(vLabel);
 
-      LabScene.makeDraggable(app, vc, {});
+      LabScene.makeDraggable(scene.app, vc, {});
     });
-  }
 
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    return {
+      setViewAngle,
+      resetAll() {
+        setViewAngle(0);
+        vessels.forEach((vc) => vc.position.set(vc._labStartX, vc._labStartY));
+      },
+    };
+  }
 
   window.LabCylinderWidget = { attachCylinderTask };
 

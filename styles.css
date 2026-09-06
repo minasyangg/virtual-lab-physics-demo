@@ -39,12 +39,16 @@ button.secondary{background:#fff;color:var(--accent);border:1px solid var(--acce
 .status.bad{color:var(--bad);}
 textarea{width:100%;min-height:70px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:.92rem;resize:vertical;}
 .footer-actions{padding:18px 28px;display:flex;gap:10px;flex-wrap:wrap;}
+.section > .no-print{margin-top:6px;}
 .conclusion{margin-top:6px;}
 .small-note{font-size:.8rem;color:#666;margin-top:4px;}
 .variant-badge{float:right;background:#fff;color:var(--purple);border-radius:6px;padding:3px 10px;font-size:.8rem;font-weight:700;}
 .grid-canvas{border:1px solid var(--border);border-radius:6px;background-image:linear-gradient(#eee 1px,transparent 1px),linear-gradient(90deg,#eee 1px,transparent 1px);background-size:16px 16px;touch-action:none;}
 .cylinder-wrap{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;}
 .readout{font-size:.9rem;}
+.view-angle-label{display:flex;align-items:center;gap:10px;font-size:.9rem;}
+.view-angle-label input[type="range"]{flex:1;max-width:320px;}
+.view-angle-ticks{display:flex;justify-content:space-between;max-width:330px;margin-top:2px;font-size:.75rem;color:#777;}
 .link-row{margin-top:10px;font-size:.85rem;}
 .link-row a{color:var(--accent);text-decoration:none;font-weight:600;}
 .link-row a:hover{text-decoration:underline;}
