@@ -15,6 +15,7 @@
 <script src="engine/scene.js"></script>
 <script src="engine/widgets/ruler.js"></script>
 <script src="engine/widgets/cylinder.js"></script>
+<script src="engine/widgets/magnifier.js"></script>
 <script>
 const { getVariantSeed, loadLabSchema, saveProgress, loadProgress } = window.LabEngine;
 
@@ -51,6 +52,7 @@ function render() {
       <span class="bar">Задание 1. Работа с линейкой</span>
       <p class="small-note">Возьмите предмет со стола и приложите его к линейке — начало и конец измерения нужно совместить со штрихами шкалы самостоятельно.</p>
       <div class="scene-wrap"><div id="scene-task1" class="scene-box"></div></div>
+      <div class="no-print"><button class="secondary" id="magnifier-task1-btn">🔍 Лупа</button></div>
       <table id="table11">
         <thead><tr><th>Линейка</th><th>Цена деления, см</th>
         ${lab.objects.map((o,i)=>`<th>Длина l${i+1} (${o.name}), см</th>`).join('')}
@@ -97,6 +99,7 @@ function render() {
             <p class="small-note callout-caption">Вода смачивает стекло — у стенок сосуда уровень выше, чем в центре. Читайте показание по нижней точке мениска (в центре).</p>
           </div>
         </div>
+        <div class="no-print"><button class="secondary" id="magnifier-task2-btn">🔍 Лупа</button></div>
         <div class="widget-box">
           <label class="view-angle-label">
             Угол взгляда:
@@ -162,6 +165,13 @@ async function buildTask1Scene() {
   document.getElementById('reset-task1-btn').addEventListener('click', () => {
     widget.resetAll();
     document.querySelectorAll('#table11 td:not(:first-child), .t12').forEach(el => { el.textContent = ''; });
+  });
+
+  const magnifier1 = LabMagnifierWidget.attachMagnifier(scene, el);
+  const magBtn1 = document.getElementById('magnifier-task1-btn');
+  magBtn1.addEventListener('click', () => {
+    magnifier1.toggle();
+    magBtn1.classList.toggle('active', magnifier1.isActive());
   });
 }
 
@@ -236,6 +246,13 @@ async function buildTask2Scene() {
     readStatus.textContent = '';
     currentTrueVolumeMl = null;
     document.querySelectorAll('.vessel-val').forEach(el => { el.textContent = ''; });
+  });
+
+  const magnifier2 = LabMagnifierWidget.attachMagnifier(scene, el);
+  const magBtn2 = document.getElementById('magnifier-task2-btn');
+  magBtn2.addEventListener('click', () => {
+    magnifier2.toggle();
+    magBtn2.classList.toggle('active', magnifier2.isActive());
   });
 }
 
