@@ -1,4 +1,6 @@
 
+(function () {
+
 function mulberry32(seed) {
   return function() {
     seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -169,3 +171,5 @@ function renderCylinder(container, cyl, trueVolumeMl, rng, onRead) {
 }
 
 window.LabEngine = { mulberry32, getVariantSeed, loadLabSchema, saveProgress, loadProgress, renderRuler, renderCylinder };
+
+})();
