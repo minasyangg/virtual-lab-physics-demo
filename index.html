@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Виртуальная лаба №1 — Цена деления шкалы</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="sheet" id="app">Загрузка лабораторной работы...</div>
+
+<script src="engine.js"></script>
+<script>
+const { mulberry32, getVariantSeed, loadLabSchema, saveProgress, loadProgress, renderRuler, renderCylinder } = window.LabEngine;
+
+const seed = getVariantSeed();
+let lab, state = { table11: {}, table12: {}, table13: {} };
+
+async function init() {
+  lab = await loadLabSchema('lab-01-scale-division.json');
+  state = Object.assign({ table11: {}, table12: {}, table13: {} }, loadProgress(lab.id));
+  render();
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="header">
+      <span class="variant-badge">Вариант: ${seed}</span>
+      <div class="num">Лабораторная работа № 1</div>
+      <h1>${lab.title}</h1>
+    </div>
+
+    <div class="section">
+      <h2>Цель</h2>
+      <p>${lab.goal}</p>
+      <p class="small-note">Учебник: ${lab.textbookRef}</p>
+    </div>
+
+    <div class="section">
+      <h2>Оборудование и материалы</h2>
+      <ul class="equipment-list">${lab.equipment.map(e => `<li>${e}</li>`).join('')}</ul>
+    </div>
+
+    <div class="section">
+      <span class="bar">Задание 1. Работа с линейкой</span>
+      <div id="task1"></div>
+      <table id="table11">
+        <thead><tr><th>Линейка</th><th>Цена деления, см</th>
+        ${lab.objects.map((o,i)=>`<th>Длина l${i+1} (${o.name}), см</th>`).join('')}
+        <th>Погрешность измерения</th></tr></thead>
+        <tbody>
+          ${lab.rulers.map(r => `<tr data-ruler="${r.id}">
+            <td>${r.label}</td>
+            <td class="cena"></td>
+            ${lab.objects.map((o,i)=>`<td class="l${i+1}"></td>`).join('')}
+            <td class="pogr"></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <span class="bar">Таблица 1.2 — длины с учётом погрешности</span>
+      <table>
+        <thead><tr><th>Измеряемый предмет</th><th>Линейка № 1</th><th>Линейка № 2</th></tr></thead>
+        <tbody>
+          ${lab.objects.map((o,i)=>`<tr>
+            <td>${i+1}. ${o.name}</td>
+            <td class="t12" data-ruler="r1" data-obj="${i}"></td>
+            <td class="t12" data-ruler="r2" data-obj="${i}"></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <span class="bar">Задание 2. Работа с измерительным цилиндром</span>
+      <div class="step">
+        <div class="instr"><span class="badge-num">1</span>Определите цену деления измерительного цилиндра: цена деления = (верхнее − нижнее значение соседних штрихов) / число делений между ними.</div>
+        <div class="widget-box">
+          <label>Ваш расчёт цены деления (мл): <input type="number" step="0.1" id="cyl-division" style="width:80px"></label>
+          <span class="status" id="cyl-division-status"></span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="instr"><span class="badge-num">2</span>Перелейте воду из стакана в измерительный цилиндр и определите положение уровня воды по шкале (глаз — на уровне мениска).</div>
+        <div class="widget-box"><div id="cyl-widget" class="cylinder-wrap"></div></div>
+      </div>
+      <span class="bar">Таблица 1.3 — объём жидкости в разных сосудах</span>
+      <table>
+        <thead><tr><th>Ёмкость с водой</th><th>Объём жидкости (значение ± погрешность), мл</th></tr></thead>
+        <tbody>
+          ${lab.vessels.map((v,i)=>`<tr><td>${i+1}. ${v.name}</td><td class="vessel-val" data-idx="${i}"></td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Выводы</h2>
+      <textarea id="conclusion" placeholder="Сформулируйте вывод о том, что такое цена деления и как она влияет на точность измерений...">${state.conclusion || ''}</textarea>
+    </div>
+
+    <div class="footer-actions no-print">
+      <button id="save-btn">Сохранить прогресс</button>
+      <a class="link-row" href="worksheet.html${location.search}"><button class="secondary">Перейти к письменному рабочему листу →</button></a>
+    </div>
+  `;
+
+  buildTask1();
+  buildCylinderTask();
+
+  document.getElementById('save-btn').addEventListener('click', () => {
+    state.conclusion = document.getElementById('conclusion').value;
+    saveProgress(lab.id, state);
+    alert('Прогресс сохранён локально в этом браузере.');
+  });
+}
+
+function buildTask1() {
+  const container = document.getElementById('task1');
+  lab.rulers.forEach((ruler) => {
+    const row = document.querySelector(`tr[data-ruler="${ruler.id}"]`);
+    row.querySelector('.cena').textContent = ruler.divisionCm.toFixed(1);
+    const pogr = ruler.divisionCm / 2;
+    row.querySelector('.pogr').textContent = '±' + pogr.toFixed(2);
+
+    lab.objects.forEach((obj, i) => {
+      const stepDiv = document.createElement('div');
+      stepDiv.className = 'step';
+      stepDiv.innerHTML = `<div class="instr"><span class="badge-num">${i+1}</span>Линейка ${ruler.label}: измерьте «${obj.name}».</div>
+        <div class="widget-box" id="ruler-${ruler.id}-${i}"></div>`;
+      container.appendChild(stepDiv);
+
+      const rngLocal = mulberry32(seed + ruler.id.charCodeAt(1) * 100 + i);
+      renderRuler(document.getElementById(`ruler-${ruler.id}-${i}`), ruler, obj.trueLength, rngLocal, (measured) => {
+        row.querySelector(`.l${i+1}`).textContent = measured.toFixed(1);
+        const t12cell = document.querySelector(`.t12[data-ruler="${ruler.id}"][data-obj="${i}"]`);
+        t12cell.textContent = `${measured.toFixed(1)} ± ${pogr.toFixed(2)} см`;
+      });
+    });
+  });
+}
+
+function buildCylinderTask() {
+  const cylWidget = document.getElementById('cyl-widget');
+  const trueDiv = lab.cylinder.divisionMl;
+  const divInput = document.getElementById('cyl-division');
+  const divStatus = document.getElementById('cyl-division-status');
+  divInput.addEventListener('input', () => {
+    const v = parseFloat(divInput.value);
+    if (!isNaN(v) && Math.abs(v - trueDiv) < 0.05) {
+      divStatus.textContent = '✓ верно'; divStatus.className = 'status ok';
+    } else if (!isNaN(v)) {
+      divStatus.textContent = '✗ пересчитайте'; divStatus.className = 'status bad';
+    }
+  });
+
+  renderCylinder(cylWidget, lab.cylinder, lab.cylinder.trueLevelMl, mulberry32(seed + 999), () => {});
+
+  lab.vessels.forEach((v, i) => {
+    const cell = document.querySelector(`.vessel-val[data-idx="${i}"]`);
+    const wrap = document.createElement('div');
+    wrap.style.marginTop = '10px';
+    const input = document.createElement('input');
+    input.type = 'text'; input.placeholder = `объём сосуда ${i+1}, мл`;
+    input.style.width = '160px';
+    input.addEventListener('input', () => { cell.textContent = input.value; });
+    document.getElementById('cyl-widget').parentElement.appendChild(wrap);
+    wrap.innerHTML = `<label>Сосуд «${v.name}», ваш отсчёт (± ${lab.cylinder.divisionMl/2} мл): </label>`;
+    wrap.appendChild(input);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
