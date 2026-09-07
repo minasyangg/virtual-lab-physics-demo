@@ -41,7 +41,41 @@
     app.stage.eventMode = 'static';
     app.stage.hitArea = new PIXI.Rectangle(0, 0, width, height);
 
-    return { app, width, height, layers: { table: layerTable, tools: layerTools, objects: layerObjects, ui: layerUI } };
+    const scene = {
+      app, width, height,
+      layers: { table: layerTable, tools: layerTools, objects: layerObjects, ui: layerUI },
+    };
+
+    // --- Поддержка «второго взгляда» на сцену (лупа) ---------------------
+    // Лупа не может переиспользовать объекты стола: Pixi привязывает
+    // GPU-ресурсы объекта к тому рендереру, который его нарисовал, и во
+    // втором рендерере такой объект не рисуется. Поэтому сцена должна
+    // уметь построить свою независимую копию — этим занимается функция,
+    // переданная в setRebuilder(): она рисует то же содержимое заново,
+    // из текущего состояния, но новыми объектами.
+    let rebuilder = null;
+    const changeListeners = [];
+
+    scene.setRebuilder = function (fn) { rebuilder = fn; };
+    scene.rebuild = function () {
+      if (!rebuilder) return null;
+      const copy = new PIXI.Container();
+      // столешница в копии — тем же цветом, что и на основной сцене
+      const bg = new PIXI.Graphics();
+      bg.rect(0, 0, width, height);
+      bg.fill(0xece6da);
+      copy.addChild(bg);
+      rebuilder(copy);
+      return copy;
+    };
+    // Виджеты зовут это при любом изменении на столе (перелили воду,
+    // подвинули предмет), чтобы картинка под лупой не отставала.
+    scene.onChange = function (fn) { changeListeners.push(fn); };
+    scene.notifyChanged = function () {
+      changeListeners.forEach((fn) => fn());
+    };
+
+    return scene;
   }
 
   // ---- Общая drag-система -----------------------------------------------

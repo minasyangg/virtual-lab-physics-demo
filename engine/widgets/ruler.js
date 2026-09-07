@@ -137,7 +137,24 @@
       }
 
       LabScene.makeDraggable(app, objContainer, {
-        onDragEnd: evaluateAgainstAllRulers,
+        onDragMove: () => scene.notifyChanged(),
+        onDragEnd() {
+          evaluateAgainstAllRulers();
+          scene.notifyChanged();
+        },
+      });
+    });
+
+    // Копия содержимого для лупы: те же линейки и предметы, нарисованные
+    // заново (собственными объектами лупы) в их текущих положениях.
+    scene.setRebuilder((root) => {
+      lab.rulers.forEach((ruler, i) => {
+        root.addChild(buildRuler(ruler, 24, 20 + i * 90).container);
+      });
+      lab.objects.forEach((obj, i) => {
+        const copy = buildMeasurableObject(obj, i);
+        copy.position.set(objects[i].x, objects[i].y);
+        root.addChild(copy);
       });
     });
 
@@ -146,6 +163,7 @@
         objects.forEach((objContainer) => {
           objContainer.position.set(objContainer._labStartX, objContainer._labStartY);
         });
+        scene.notifyChanged();
       },
     };
   }

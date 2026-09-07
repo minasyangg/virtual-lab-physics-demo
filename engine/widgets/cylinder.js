@@ -81,9 +81,13 @@
     cylContainer.position.set(width * 0.72, height - 30);
     layers.objects.addChild(cylContainer);
 
+    let currentViewAngle = 0;
+
     function setViewAngle(angle) {
+      currentViewAngle = angle;
       cylContainer._labWater.setViewAngle(angle);
       const aligned = Math.abs(angle) < 0.08;
+      scene.notifyChanged();
       if (callbacks.onViewAngleChange) callbacks.onViewAngleChange(angle, aligned);
     }
     setViewAngle(0);
@@ -135,28 +139,85 @@
 
       function startPour() {
         // сосуд пустеет, цилиндр наполняется — одновременно, единая анимация
-        LabScene.tweenWaterLevel(scene.app, vc._labWater, vc._labLevelFrac, 0, POUR_DURATION_MS, () => {
+        const fromVessel = vc._labLevelFrac;
+        const fromCyl = cylContainer._labLevelFrac;
+        LabScene.tweenWaterLevel(scene.app, vc._labWater, fromVessel, 0, POUR_DURATION_MS, () => {
           vc._labLevelFrac = 0;
         });
-        LabScene.tweenWaterLevel(scene.app, cylContainer._labWater, cylContainer._labLevelFrac, targetCylFrac, POUR_DURATION_MS, () => {
+        LabScene.tweenWaterLevel(scene.app, cylContainer._labWater, fromCyl, targetCylFrac, POUR_DURATION_MS, () => {
           cylContainer._labLevelFrac = targetCylFrac;
+          vc._labLevelFrac = 0;
           pouring = false;
+          scene.notifyChanged();
           if (callbacks.onPour) callbacks.onPour(vesselIndex, vc._labVolumeMl);
         });
+        // Пока идёт анимация, картинка под лупой должна литься так же
+        // плавно, как на столе, — иначе уровень под стеклом прыгнет разом
+        // в конце. Обновляем оба уровня по ходу.
+        trackPour(fromVessel, fromCyl, targetCylFrac, vc);
+      }
+
+      // Прокидывает промежуточные значения уровней в _labLevelFrac, пока
+      // идёт анимация: копия для лупы строится именно по ним.
+      function trackPour(fromVessel, fromCyl, toCyl, vessel) {
+        const start = performance.now();
+        function step() {
+          const t = Math.min(1, (performance.now() - start) / POUR_DURATION_MS);
+          const eased = 1 - Math.pow(1 - t, 2);
+          vessel._labLevelFrac = fromVessel + (0 - fromVessel) * eased;
+          cylContainer._labLevelFrac = fromCyl + (toCyl - fromCyl) * eased;
+          scene.notifyChanged();
+          if (t < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
       }
 
       // Если в цилиндре уже что-то есть от предыдущего переливания —
       // сначала быстро опустошаем его, потом наливаем новое: так каждое
       // измерение независимо, объёмы не складываются.
       if (cylContainer._labLevelFrac > 0) {
-        LabScene.tweenWaterLevel(scene.app, cylContainer._labWater, cylContainer._labLevelFrac, 0, POUR_DURATION_MS * 0.4, () => {
+        const fromCyl = cylContainer._labLevelFrac;
+        const clearMs = POUR_DURATION_MS * 0.4;
+        LabScene.tweenWaterLevel(scene.app, cylContainer._labWater, fromCyl, 0, clearMs, () => {
           cylContainer._labLevelFrac = 0;
+          scene.notifyChanged();
           startPour();
         });
+        (function trackClear() {
+          const start = performance.now();
+          function step() {
+            const t = Math.min(1, (performance.now() - start) / clearMs);
+            const eased = 1 - Math.pow(1 - t, 2);
+            cylContainer._labLevelFrac = fromCyl * (1 - eased);
+            scene.notifyChanged();
+            if (t < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        })();
       } else {
         startPour();
       }
     }
+
+    // Копия содержимого для лупы: цилиндр и сосуды заново, с текущими
+    // уровнями воды и текущим углом взгляда — чтобы под стеклом был виден
+    // ровно тот же мениск, что и на столе.
+    scene.setRebuilder((root) => {
+      const c = buildVessel(cylW, cylH, 'cylinder', cylContainer._labLevelFrac, cyl);
+      c.pivot.set(cylW / 2, cylH);
+      c.position.set(cylContainer.x, cylContainer.y);
+      c._labWater.setViewAngle(currentViewAngle);
+      root.addChild(c);
+
+      vessels.forEach((vc, i) => {
+        const w = 48 - i * 6;
+        const h = 120 - i * 18;
+        const copy = buildVessel(w, h, vesselShapes[i % vesselShapes.length], vc._labLevelFrac, null);
+        copy.pivot.set(w / 2, h);
+        copy.position.set(vc.x, vc.y);
+        root.addChild(copy);
+      });
+    });
 
     return {
       setViewAngle,
@@ -170,6 +231,7 @@
           vc._labWater.setLevel(vc._labStartFrac);
           vc._labLevelFrac = vc._labStartFrac;
         });
+        scene.notifyChanged();
       },
     };
   }
