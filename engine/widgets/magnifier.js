@@ -1,7 +1,10 @@
 // engine/widgets/magnifier.js
-// Инструмент «лупа»: круглое увеличительное стекло, которое лежит на
-// лабораторном столе и которое можно взять мышью и водить над любым
-// местом сцены — над шкалой линейки, над мениском в мензурке.
+// Инструмент «лупа»: круглое увеличительное стекло, которое можно вызвать
+// на лабораторный стол по кнопке и водить мышью над любым местом сцены —
+// над шкалой линейки, над мениском в мензурке. Лупа довольно крупная
+// (это и нужно, чтобы деления читались), поэтому лежит на столе не
+// постоянно, а только когда её вызвали: attachMagnifier() создаёт
+// инструмент скрытым, show()/hide()/toggle() управляют её появлением.
 //
 // Как это устроено (и почему именно так).
 //
@@ -86,6 +89,10 @@
     frame.cursor = 'grab';
     // Схватить можно и за стекло, и за ручку.
     frame.hitArea = new PIXI.Circle(0, 0, radius + 8);
+    // Скрыта по умолчанию: лупа крупная и занимает заметную часть стола,
+    // поэтому появляется только по вызову (кнопка «Лупа» рядом со сценой).
+    frame.visible = opts.startVisible === true;
+    let visible = frame.visible;
     layers.ui.addChild(frame);
 
     // --- Собственный рендерер лупы -------------------------------------
@@ -132,7 +139,7 @@
     }
 
     function onTick() {
-      if (!needsRedraw || !lensRenderer || !mirror || destroyed) return;
+      if (!visible || !needsRedraw || !lensRenderer || !mirror || destroyed) return;
       // Сдвигаем копию так, чтобы точка (lensX, lensY) сцены оказалась
       // в центре круглого окна, увеличенная в zoom раз.
       mirrorHolder.position.set(radius - lensX * zoom, radius - lensY * zoom);
@@ -149,6 +156,7 @@
     const grab = { dx: 0, dy: 0 };
 
     frame.on('pointerdown', (e) => {
+      if (!visible) return;
       dragging = true;
       frame.cursor = 'grabbing';
       const p = frame.parent.toLocal(e.global);
@@ -176,6 +184,18 @@
     app.stage.on('pointerup', endDrag);
     app.stage.on('pointerupoutside', endDrag);
 
+    function show() {
+      visible = true;
+      frame.visible = true;
+      needsRedraw = true; // сразу перерисовать — не ждать движения мыши
+    }
+    function hide() {
+      visible = false;
+      frame.visible = false;
+      dragging = false;
+      frame.cursor = 'grab';
+    }
+
     return {
       // Вызывается сценой, когда на столе что-то изменилось (перелили воду,
       // подвинули предмет, сменили угол взгляда) — копия под стеклом должна
@@ -183,6 +203,10 @@
       refresh: rebuildMirror,
       // Текущая точка наблюдения — нужна тестам и возможной подсветке.
       getFocus() { return { x: lensX, y: lensY }; },
+      show,
+      hide,
+      toggle() { if (visible) hide(); else show(); },
+      isVisible() { return visible; },
       destroy() {
         destroyed = true;
         app.ticker.remove(onTick);

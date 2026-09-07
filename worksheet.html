@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Рабочий лист — Лаба №1</title>
 <link rel="stylesheet" href="styles.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="sheet" id="app">Загрузка...</div>
@@ -119,8 +118,7 @@ function render() {
 
     <div class="footer-actions no-print">
       <button id="save-btn">Сохранить черновик</button>
-      <button id="pdf-btn" class="secondary">Скачать как PDF</button>
-      <button id="print-btn" class="secondary">Печать</button>
+      <button id="print-btn" class="secondary">Печать / Сохранить как PDF</button>
       <a class="link-row" href="index.html${location.search}"><button class="secondary">← Назад к виртуальной лабе</button></a>
     </div>
   `;
@@ -148,17 +146,14 @@ function bindInputs() {
     collectAndSave();
     alert('Черновик сохранён локально в этом браузере.');
   });
-  document.getElementById('print-btn').addEventListener('click', () => window.print());
-  document.getElementById('pdf-btn').addEventListener('click', () => {
+  // Печать средствами браузера — вместо рендера DOM в картинку (html2pdf.js),
+  // который резал контент на страницы независимо от вёрстки и давал пустые
+  // страницы в начале. Системный диалог печати уважает @media print и
+  // break-inside:avoid из styles.css, поэтому таблицы и вопросы не рвутся
+  // пополам, а «Сохранить как PDF» — обычный пункт этого диалога.
+  document.getElementById('print-btn').addEventListener('click', () => {
     collectAndSave();
-    const el = document.getElementById('app');
-    const opt = {
-      margin: 8,
-      filename: `worksheet_lab01_${answers.fio || 'student'}_variant${seed}.pdf`,
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(el).save();
+    window.print();
   });
 }
 
