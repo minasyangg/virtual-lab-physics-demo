@@ -16,6 +16,7 @@
 <script src="../../../../engine/scene.js"></script>
 <script src="../../../../engine/widgets/submersion.js"></script>
 <script src="../../../../engine/widgets/magnifier.js"></script>
+<script src="../../../../engine/widgets/fullscreen.js"></script>
 <script>
 const { getVariantSeed, loadLabSchema, saveProgress, loadProgress } = window.LabEngine;
 
@@ -74,8 +75,11 @@ function render() {
       </div>
       <div class="step">
         <div class="instr"><span class="badge-num">2</span>Цилиндр уже наполнен водой на <sup>2</sup>&frasl;<sub>3</sub> объёма — это V₁. Перетащите мышью тело со стола и отпустите его над цилиндром: тело погрузится, а уровень воды поднимется до V₂. Считайте оба значения по шкале и вычислите объём тела как их разность.</div>
-        <div class="scene-wrap"><div id="scene-a" class="scene-box"></div></div>
-        <div class="no-print"><button class="secondary" id="magnifier-a-btn">🔍 Лупа</button></div>
+        <div class="scene-wrap" id="scene-wrap-a"><div id="scene-a" class="scene-box"></div></div>
+        <div class="no-print">
+          <button class="secondary" id="magnifier-a-btn">🔍 Лупа</button>
+          <button class="secondary" id="fullscreen-a-btn">⛶ На весь экран</button>
+        </div>
       </div>
       <span class="bar">Таблица 1.4 — объём тела по разности уровней</span>
       <table id="table-a">
@@ -96,8 +100,11 @@ function render() {
       <span class="bar">Способ Б. Определение объёма отливным сосудом</span>
       <div class="step">
         <div class="instr"><span class="badge-num">1</span>Отливной сосуд слева уже наполнен водой ровно до отверстия трубки — так и должно быть по условию опыта. Перетащите то же тело мышью в сосуд: вытесненная вода перельётся по трубке в пустой цилиндр справа. Считайте объём вылившейся воды прямо со шкалы — это и есть объём тела.</div>
-        <div class="scene-wrap"><div id="scene-b" class="scene-box"></div></div>
-        <div class="no-print"><button class="secondary" id="magnifier-b-btn">🔍 Лупа</button></div>
+        <div class="scene-wrap" id="scene-wrap-b"><div id="scene-b" class="scene-box"></div></div>
+        <div class="no-print">
+          <button class="secondary" id="magnifier-b-btn">🔍 Лупа</button>
+          <button class="secondary" id="fullscreen-b-btn">⛶ На весь экран</button>
+        </div>
       </div>
       <span class="bar">Таблица 1.5 — объём тела отливным сосудом</span>
       <table id="table-b">
@@ -147,6 +154,12 @@ async function buildSceneA() {
   const magABtn = document.getElementById('magnifier-a-btn');
   magABtn.addEventListener('click', () => { magA.toggle(); magABtn.classList.toggle('active', magA.isVisible()); });
 
+  LabFullscreenWidget.attachFullscreenToggle(
+    sceneA,
+    document.getElementById('scene-wrap-a'),
+    document.getElementById('fullscreen-a-btn'),
+  );
+
   document.getElementById('reset-a-btn').addEventListener('click', () => {
     submersion.resetAll();
     document.querySelectorAll('#table-a input').forEach(el => { el.value = ''; });
@@ -168,6 +181,12 @@ async function buildSceneB() {
   if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugMagB = magB;
   const magBBtn = document.getElementById('magnifier-b-btn');
   magBBtn.addEventListener('click', () => { magB.toggle(); magBBtn.classList.toggle('active', magB.isVisible()); });
+
+  LabFullscreenWidget.attachFullscreenToggle(
+    sceneB,
+    document.getElementById('scene-wrap-b'),
+    document.getElementById('fullscreen-b-btn'),
+  );
 
   document.getElementById('reset-b-btn').addEventListener('click', () => {
     submersion.resetAll();

@@ -30,9 +30,26 @@ button:hover{background:var(--purple);}
 button.secondary{background:#fff;color:var(--accent);border:1px solid var(--accent);}
 button.secondary.active{background:var(--accent);color:#fff;}
 .ruler-svg-wrap{overflow-x:auto;}
-.scene-wrap{margin:10px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#ece6da;}
+.scene-wrap{margin:10px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#ece6da;position:relative;}
 .scene-box{width:100%;min-height:260px;touch-action:none;}
 .scene-box canvas{display:block;width:100%;}
+/* Полноразмерный просмотр стола (engine/widgets/fullscreen.js) — canvas не
+   пересоздаётся, растягивается тот же самый Pixi renderer через resize. */
+.scene-wrap.scene-fullscreen{
+  position:fixed;inset:0;z-index:1000;margin:0;border-radius:0;border:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.scene-wrap.scene-fullscreen::before{
+  content:"";position:fixed;inset:0;background:#ece6da;z-index:-1;
+}
+.scene-wrap.scene-fullscreen .scene-box{width:auto;min-height:0;}
+.scene-wrap.scene-fullscreen .scene-box canvas{width:auto;}
+.scene-fullscreen-exit{
+  position:absolute;top:14px;right:14px;z-index:1;
+  background:var(--purple-dark);color:#fff;border:none;border-radius:6px;
+  padding:8px 14px;font-size:.85rem;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25);
+}
+.scene-fullscreen-exit:hover{background:var(--purple);}
 .result-line{margin-top:8px;font-size:.9rem;}
 .result-line .val{font-weight:700;color:var(--purple-dark);}
 .status{font-size:.85rem;font-weight:600;margin-left:8px;}

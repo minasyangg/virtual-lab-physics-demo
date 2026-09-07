@@ -447,6 +447,113 @@
     return c;
   }
 
+  // ---- Соединительная трубка между сосудами ---------------------------
+  // Рисует изогнутую трубку от точки `from` до точки `to` (обе — {x,y} в
+  // координатах общего родителя, куда добавляется результат) — путь идёт
+  // вниз от начальной точки, горизонтально под уровнем стола, и вверх к
+  // конечной, как настоящий соединительный шланг между приборами.
+  // Возвращает { container, path } — path нужен flowAnimator'у, чтобы
+  // знать, вдоль какой кривой пускать «капли».
+  function drawTube(from, to, opts) {
+    opts = opts || {};
+    const r = opts.radius || 4; // толщина трубки (половина)
+    const dropY = opts.dropY !== undefined ? opts.dropY : Math.max(from.y, to.y) + 30;
+
+    // Путь — ломаная со скруглёнными изгибами: вниз от носика,
+    // горизонтально, строго вертикально вверх в приёмный сосуд (последний
+    // отрезок без бокового смещения — иначе труба заходит в горлышко
+    // наискось и торчит «хвостиком» за контур сосуда).
+    const bend = 14;
+    const path = [
+      { x: from.x, y: from.y },
+      { x: from.x + bend, y: dropY - bend },
+      { x: from.x + bend, y: dropY },
+      { x: to.x, y: dropY },
+      { x: to.x, y: to.y },
+    ];
+
+    const container = new PIXI.Container();
+    const g = new PIXI.Graphics();
+    // Труба рисуется как единая толстая линия по всем сегментам пути —
+    // проще и надёжнее, чем ручная заливка контура, и даёт аккуратные
+    // скруглённые стыки в местах изгиба благодаря join:'round'.
+    g.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
+    g.stroke({ width: r * 2 + 3, color: 0x9db3c2, alpha: 0.9, join: 'round', cap: 'round' });
+    g.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
+    g.stroke({ width: r * 2, color: 0xdfeaf2, alpha: 0.5, join: 'round', cap: 'round' });
+
+    container.addChild(g);
+    container._labTubePath = path;
+    return container;
+  }
+
+  // ---- Поток воды внутри трубки ----------------------------------------
+  // Создаёт управляемый объект «жидкость в трубке»: заливка того же пути,
+  // что и drawTube, но с переменной alpha/длиной — включается только на
+  // время переливания, чтобы было видно, что вода реально течёт по шлангу
+  // из одного сосуда в другой, а не телепортируется.
+  // tubeContainer — результат drawTube (используется его path).
+  // Возвращает { setProgress(t) } — t: 0 (пусто) .. 1 (труба полна потоком).
+  function createTubeFlow(tubeContainer, opts) {
+    opts = opts || {};
+    // Поток чуть уже просвета трубки: со скруглёнными концами линия шириной
+    // вровень со стенками вылезала бы за контур на изгибах и у входа в сосуд.
+    const r = (opts.radius || 4) - 1.6;
+    const path = tubeContainer._labTubePath;
+
+    // Суммарная длина пути — чтобы отмерять «залитую» часть по длине, а
+    // не по числу сегментов (сегменты разной длины).
+    const segLens = [];
+    let totalLen = 0;
+    for (let i = 1; i < path.length; i++) {
+      const dx = path[i].x - path[i - 1].x, dy = path[i].y - path[i - 1].y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      segLens.push(len);
+      totalLen += len;
+    }
+
+    const g = new PIXI.Graphics();
+    tubeContainer.addChild(g);
+
+    function pointAt(distance) {
+      let remaining = distance;
+      for (let i = 0; i < segLens.length; i++) {
+        if (remaining <= segLens[i] || i === segLens.length - 1) {
+          const t = segLens[i] === 0 ? 0 : Math.min(1, remaining / segLens[i]);
+          const a = path[i], b = path[i + 1];
+          return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+        }
+        remaining -= segLens[i];
+      }
+      return path[path.length - 1];
+    }
+
+    function setProgress(t) {
+      g.clear();
+      t = Math.max(0, Math.min(1, t));
+      if (t <= 0) return;
+      const filledLen = totalLen * t;
+      g.moveTo(path[0].x, path[0].y);
+      let acc = 0;
+      for (let i = 1; i < path.length; i++) {
+        acc += segLens[i - 1];
+        if (acc <= filledLen) {
+          g.lineTo(path[i].x, path[i].y);
+        } else {
+          const p = pointAt(filledLen);
+          g.lineTo(p.x, p.y);
+          break;
+        }
+      }
+      g.stroke({ width: r * 2, color: 0x2e7fc4, alpha: 1, join: 'round', cap: 'round' });
+    }
+
+    setProgress(0);
+    return { setProgress, destroy() { g.destroy(); } };
+  }
+
   window.LabDraw = {
     dropShadow,
     drawWoodRuler,
@@ -457,6 +564,8 @@
     drawScale,
     drawSolidBody,
     drawSpoutVessel,
+    drawTube,
+    createTubeFlow,
   };
 
 })();

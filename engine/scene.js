@@ -75,6 +75,24 @@
       changeListeners.forEach((fn) => fn());
     };
 
+    // --- Полноразмерный просмотр (кнопка «На весь экран») -----------------
+    // Все объекты сцены построены в неизменных логических координатах
+    // (0..width, 0..height) — виджеты никогда об этом не узнают. Чтобы
+    // показать тот же стол крупнее, не пересобирая ни одного объекта,
+    // достаточно изменить физический размер канвы (renderer.resize) и
+    // растянуть корневой контейнер (stage.scale) на тот же коэффициент —
+    // расположение предметов, вода, состояние лупы остаются как есть,
+    // потому что это одни и те же Pixi-объекты, просто иначе увеличенные.
+    scene.setViewportSize = function (viewW, viewH) {
+      const fit = Math.min(viewW / width, viewH / height);
+      app.renderer.resize(width * fit, height * fit);
+      app.stage.scale.set(fit);
+    };
+    scene.resetViewportSize = function () {
+      app.renderer.resize(width, height);
+      app.stage.scale.set(1);
+    };
+
     return scene;
   }
 

@@ -18,7 +18,7 @@
 (function () {
 
   const SINK_DURATION_MS = 550;
-  const POUR_DURATION_MS = 700;
+  const POUR_DURATION_MS = 1400;
 
   function buildBody(body, size) {
     const c = LabDraw.drawSolidBody(body.shape, size);
@@ -206,7 +206,26 @@
       catchContainer._labLevelFrac = 0;
       layers.objects.addChild(catchContainer);
 
+      // Трубка, физически соединяющая носик отливного сосуда с горлышком
+      // мензурки-приёмника — вода видимо течёт по ней, а не телепортируется
+      // между сосудами. Оба конца переведены в координаты layers.objects
+      // (общий родитель обоих сосудов, без собственного масштаба/поворота,
+      // поэтому позиция+pivot достаточно — toGlobal/toLocal не нужны).
+      const spoutTipLocal = vessel._labSpoutTip; // локально в vessel, до pivot/position
+      const tubeFrom = {
+        x: vessel.x - vessel.pivot.x + spoutTipLocal.x,
+        y: vessel.y - vessel.pivot.y + spoutTipLocal.y,
+      };
+      const tubeTo = {
+        x: catchContainer.x - catchContainer.pivot.x + catchCylW / 2,
+        y: catchContainer.y - catchContainer.pivot.y,
+      };
+      const tube = LabDraw.drawTube(tubeFrom, tubeTo, { radius: 4 });
+      layers.tools.addChild(tube); // под сосудами и телами (layers.objects рисуется поверх)
+      const tubeFlow = LabDraw.createTubeFlow(tube, { radius: 4 });
+
       let pouredVolume = 0;
+      let currentFlowT = 0; // текущее наполнение видимой трубки — нужно копии для лупы
       const pouredIds = new Set();
       const bodies = [];
 
@@ -259,14 +278,29 @@
           bc.alpha = 1 - 0.3 * eased;
           catchContainer._labWater.setLevel(fromCatchFrac + (targetCatchFrac - fromCatchFrac) * eased);
           catchContainer._labLevelFrac = fromCatchFrac + (targetCatchFrac - fromCatchFrac) * eased;
+          // Труба заполняется почти сразу, как тело начало погружаться (вода
+          // вытесняется немедленно), и опустевает под конец, когда последняя
+          // порция уже дотекла до мензурки — видимый поток, а не телепорт.
+          currentFlowT = t < 0.15 ? t / 0.15 : (t > 0.85 ? (1 - t) / 0.15 : 1);
+          tubeFlow.setProgress(currentFlowT);
           sceneB.notifyChanged();
-          if (t < 1) requestAnimationFrame(step);
-          else if (callbacks.onPourB) callbacks.onPourB(bc._labBodyId, bc._labVolumeMl);
+          if (t < 1) {
+            requestAnimationFrame(step);
+          } else {
+            currentFlowT = 0;
+            if (callbacks.onPourB) callbacks.onPourB(bc._labBodyId, bc._labVolumeMl);
+          }
         }
         requestAnimationFrame(step);
       }
 
       sceneB.setRebuilder((root) => {
+        // Трубка рисуется первой — она должна лежать под сосудами и телами,
+        // как и на основной сцене (layers.tools ниже layers.objects).
+        const tubeCopy = LabDraw.drawTube(tubeFrom, tubeTo, { radius: 4 });
+        root.addChild(tubeCopy);
+        LabDraw.createTubeFlow(tubeCopy, { radius: 4 }).setProgress(currentFlowT);
+
         const vCopy = LabDraw.drawSpoutVessel(vesselW, vesselH);
         vCopy.pivot.set(vesselW / 2, vesselH);
         vCopy.position.set(vessel.x, vessel.y);
