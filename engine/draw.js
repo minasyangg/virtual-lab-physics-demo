@@ -329,6 +329,124 @@
     return String(r);
   }
 
+  // ---- Малые твёрдые тела для задания «объём тела погружением» -------------
+  // Тела неправильной формы, которые нельзя измерить линейкой — в этом и
+  // физический смысл всей работы. shape: 'nut' | 'bolt' | 'ball'.
+  // size — примерный диаметр/размах в пикселях.
+  function drawSolidBody(shape, size) {
+    const c = new PIXI.Container();
+    const g = new PIXI.Graphics();
+    const s = size;
+
+    if (shape === 'nut') {
+      // шестигранная гайка с отверстием
+      const r = s / 2;
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        pts.push(r + r * Math.cos(a), r + r * Math.sin(a));
+      }
+      g.poly(pts);
+      g.fill(0x8a8f96);
+      g.poly(pts);
+      g.stroke({ width: 1, color: 0x5b6169, alpha: 0.9 });
+      g.circle(r, r, r * 0.42);
+      g.fill(0xece6da); // сквозное отверстие — цвет столешницы
+      g.circle(r, r, r * 0.42);
+      g.stroke({ width: 1, color: 0x5b6169, alpha: 0.7 });
+      // блик
+      g.poly([r * 0.35, r * 0.3, r * 0.75, r * 0.3, r * 0.6, r * 0.55, r * 0.35, r * 0.55]);
+      g.fill({ color: 0xffffff, alpha: 0.18 });
+    } else if (shape === 'bolt') {
+      // шестигранная головка + резьбовой стержень
+      const headR = s * 0.32, shaftW = s * 0.22, shaftH = s * 0.62;
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        pts.push(headR + headR * Math.cos(a), headR + headR * Math.sin(a));
+      }
+      g.poly(pts);
+      g.fill(0x9aa3ad);
+      g.poly(pts);
+      g.stroke({ width: 1, color: 0x5b636b, alpha: 0.9 });
+      g.rect(headR - shaftW / 2, headR * 1.7, shaftW, shaftH);
+      g.fill(0xb0b8c0);
+      // витки резьбы — тонкие горизонтальные штрихи
+      for (let i = 0; i < 5; i++) {
+        const y = headR * 1.9 + i * (shaftH / 5.5);
+        g.moveTo(headR - shaftW / 2, y);
+        g.lineTo(headR + shaftW / 2, y);
+        g.stroke({ width: 1, color: 0x7a838d, alpha: 0.6 });
+      }
+      g.rect(headR - shaftW / 2, headR * 1.7, shaftW, shaftH);
+      g.stroke({ width: 1, color: 0x5b636b, alpha: 0.8 });
+    } else {
+      // шарик — гладкая сфера с бликом
+      const r = s / 2;
+      g.circle(r, r, r);
+      g.fill(0x8a92a0);
+      g.circle(r * 0.65, r * 0.65, r * 0.32);
+      g.fill({ color: 0xffffff, alpha: 0.45 });
+      g.circle(r, r, r);
+      g.stroke({ width: 1, color: 0x5b636b, alpha: 0.85 });
+    }
+
+    c.addChild(g);
+    c._labBodySize = s;
+    return c;
+  }
+
+  // ---- Отливной сосуд -------------------------------------------------------
+  // Сосуд, наполненный водой ровно до отверстия боковой трубки: любое тело,
+  // погружённое в него, вытесняет через трубку объём воды, равный своему
+  // объёму. Рисуется отдельно от мензурки, потому что имеет боковой носик.
+  // Возвращает { container, spoutTipLocal } — spoutTipLocal нужен, чтобы
+  // нарисовать анимацию струйки воды, льющейся именно из носика.
+  function drawSpoutVessel(width, height) {
+    const c = new PIXI.Container();
+    const w = width, h = height;
+    const spoutY = h * 0.22; // уровень трубки — досюда сосуд налит по условию опыта
+
+    const body = new PIXI.Graphics();
+    body.moveTo(0, spoutY * 0.4);
+    body.lineTo(0, h);
+    body.lineTo(w, h);
+    body.lineTo(w, spoutY * 0.4);
+    body.closePath();
+    body.fill({ color: 0xdfeaf2, alpha: 0.22 });
+    body.stroke({ width: 2, color: 0x9db3c2, alpha: 0.85 });
+
+    // боковая трубка-носик, через которую льётся излишек воды
+    const spout = new PIXI.Graphics();
+    const spoutLen = w * 0.4;
+    spout.moveTo(w, spoutY - 3);
+    spout.lineTo(w + spoutLen, spoutY - 5);
+    spout.lineTo(w + spoutLen, spoutY + 5);
+    spout.lineTo(w, spoutY + 3);
+    spout.closePath();
+    spout.fill({ color: 0xdfeaf2, alpha: 0.3 });
+    spout.stroke({ width: 1.5, color: 0x9db3c2, alpha: 0.85 });
+
+    // вода стоит ровно до уровня трубки — это неизменное условие опыта,
+    // поэтому здесь просто заливка, а не drawWater с изменяемым уровнем
+    const water = new PIXI.Graphics();
+    water.moveTo(0, spoutY);
+    water.lineTo(0, h);
+    water.lineTo(w, h);
+    water.lineTo(w, spoutY);
+    water.closePath();
+    water.fill({ color: 0x8fb8d6, alpha: 0.55 });
+
+    const hi = new PIXI.Graphics();
+    hi.roundRect(w * 0.12, spoutY + h * 0.05, w * 0.08, h * 0.7, 4);
+    hi.fill({ color: 0xffffff, alpha: 0.3 });
+
+    c.addChild(water, body, hi, spout);
+    c._labSpoutTip = { x: w + spoutLen, y: spoutY };
+    c._labSpoutY = spoutY;
+    return c;
+  }
+
   window.LabDraw = {
     dropShadow,
     drawWoodRuler,
@@ -337,6 +455,8 @@
     drawGlass,
     drawWater,
     drawScale,
+    drawSolidBody,
+    drawSpoutVessel,
   };
 
 })();

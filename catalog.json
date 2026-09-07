@@ -13,6 +13,12 @@
               "title": "Определение цены деления шкалы измерительного прибора",
               "path": "labs/grade7/q1/lab01/index.html",
               "status": "available"
+            },
+            {
+              "id": "lab02",
+              "title": "Определение объёма твёрдого тела",
+              "path": "labs/grade7/q1/lab02/index.html",
+              "status": "available"
             }
           ]
         },

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Рабочий лист — Лаба №1</title>
+<title>Рабочий лист — Лаба №2</title>
 <link rel="stylesheet" href="../../../../styles.css">
 </head>
 <body>
@@ -21,7 +21,7 @@ async function init() {
   lab = await loadLabSchema('lab.json');
   answers = Object.assign({
     fio: '', klass: '', date: '',
-    t11: {}, t12: {}, t13: {},
+    ta: {}, tb: {},
     q: {}, conclusion: ''
   }, loadProgress(lab.id + '_worksheet'));
   render();
@@ -32,7 +32,7 @@ function render() {
   app.innerHTML = `
     <div class="header">
       <span class="variant-badge">Вариант: ${seed}</span>
-      <div class="num">Рабочий лист к лабораторной работе № 1</div>
+      <div class="num">Рабочий лист к лабораторной работе № 2</div>
       <h1>${lab.title}</h1>
     </div>
 
@@ -53,42 +53,28 @@ function render() {
     </div>
 
     <div class="section">
-      <span class="bar">Таблица 1.1 — результаты измерений линейками</span>
+      <span class="bar">Таблица 1.4 — объём тела по разности уровней воды</span>
       <table>
-        <thead><tr><th>Линейка</th><th>Цена деления, см</th>
-        ${lab.objects.map((o,i)=>`<th>l${i+1} (${o.name}), см</th>`).join('')}
-        <th>Погрешность</th></tr></thead>
+        <thead><tr><th>Исследуемое тело</th><th>Объём воды V₁, см³</th><th>Объём воды и тела V₂, см³</th><th>Объём тела Vт, см³</th></tr></thead>
         <tbody>
-          ${lab.rulers.map(r => `<tr>
-            <td>${r.label}</td>
-            <td><input type="text" data-t11="${r.id}-cena" value="${answers.t11[r.id+'-cena']||''}"></td>
-            ${lab.objects.map((o,i)=>`<td><input type="text" data-t11="${r.id}-l${i+1}" value="${answers.t11[r.id+'-l'+(i+1)]||''}"></td>`).join('')}
-            <td><input type="text" data-t11="${r.id}-pogr" value="${answers.t11[r.id+'-pogr']||''}"></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-
-      <span class="bar">Таблица 1.2 — длины с учётом погрешности</span>
-      <table>
-        <thead><tr><th>Предмет</th><th>Линейка № 1</th><th>Линейка № 2</th></tr></thead>
-        <tbody>
-          ${lab.objects.map((o,i)=>`<tr>
-            <td>${i+1}. ${o.name}</td>
-            <td><input type="text" data-t12="r1-${i}" value="${answers.t12['r1-'+i]||''}"></td>
-            <td><input type="text" data-t12="r2-${i}" value="${answers.t12['r2-'+i]||''}"></td>
+          ${lab.bodies.map((b,i)=>`<tr>
+            <td>${i+1}. ${b.name}</td>
+            <td><input type="text" data-ta="${b.id}-v1" value="${answers.ta[b.id+'-v1']||''}"></td>
+            <td><input type="text" data-ta="${b.id}-v2" value="${answers.ta[b.id+'-v2']||''}"></td>
+            <td><input type="text" data-ta="${b.id}-vt" value="${answers.ta[b.id+'-vt']||''}"></td>
           </tr>`).join('')}
         </tbody>
       </table>
     </div>
 
     <div class="section">
-      <span class="bar">Таблица 1.3 — объём жидкости</span>
+      <span class="bar">Таблица 1.5 — объём тела отливным сосудом</span>
       <table>
-        <thead><tr><th>Ёмкость с водой</th><th>Объём (значение ± погрешность), мл</th></tr></thead>
+        <thead><tr><th>Исследуемое тело</th><th>Объём вылившейся жидкости Vж, см³</th></tr></thead>
         <tbody>
-          ${lab.vessels.map((v,i)=>`<tr>
-            <td>${i+1}. ${v.name}</td>
-            <td><input type="text" data-t13="${i}" value="${answers.t13[i]||''}"></td>
+          ${lab.bodies.map((b,i)=>`<tr>
+            <td>${i+1}. ${b.name}</td>
+            <td><input type="text" data-tb="${b.id}" value="${answers.tb[b.id]||''}"></td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -133,9 +119,8 @@ function collectAndSave() {
   answers.klass = document.getElementById('klass').value;
   answers.date = document.getElementById('date').value;
   answers.conclusion = document.getElementById('conclusion').value;
-  document.querySelectorAll('[data-t11]').forEach(el => answers.t11[el.dataset.t11] = el.value);
-  document.querySelectorAll('[data-t12]').forEach(el => answers.t12[el.dataset.t12] = el.value);
-  document.querySelectorAll('[data-t13]').forEach(el => answers.t13[el.dataset.t13] = el.value);
+  document.querySelectorAll('[data-ta]').forEach(el => answers.ta[el.dataset.ta] = el.value);
+  document.querySelectorAll('[data-tb]').forEach(el => answers.tb[el.dataset.tb] = el.value);
   document.querySelectorAll('[data-q]').forEach(el => answers.q[el.dataset.q] = el.value);
   saveProgress(lab.id + '_worksheet', answers);
 }
@@ -148,14 +133,8 @@ function bindInputs() {
     collectAndSave();
     alert('Черновик сохранён локально в этом браузере.');
   });
-  // Печать средствами браузера — вместо рендера DOM в картинку (html2pdf.js),
-  // который резал контент на страницы независимо от вёрстки и давал пустые
-  // страницы в начале. Системный диалог печати уважает @media print и
-  // break-inside:avoid из styles.css, поэтому таблицы и вопросы не рвутся
-  // пополам, а «Сохранить как PDF» — обычный пункт этого диалога.
-  // Перед самой печатью — экран выбора состава (какие таблицы/строки/
-  // вопросы включить), чтобы один и тот же лист можно было сократить под
-  // конкретный класс, не трогая сохранённый прогресс.
+  // Перед печатью — выбор состава (какие таблицы/строки/вопросы включить),
+  // см. engine/print-picker.js.
   document.getElementById('print-btn').addEventListener('click', () => {
     collectAndSave();
     LabPrintPicker.openPrintPicker(() => window.print());

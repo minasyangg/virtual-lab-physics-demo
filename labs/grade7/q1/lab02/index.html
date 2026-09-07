@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Виртуальная лаба №2 — Объём твёрдого тела</title>
+<link rel="stylesheet" href="../../../../styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.6.6/pixi.min.js"></script>
+</head>
+<body>
+<nav class="breadcrumbs no-print"><a href="../../../../index.html">← К каталогу лабораторных работ</a></nav>
+<div class="sheet" id="app">Загрузка лабораторной работы...</div>
+
+<script src="../../../../engine.js"></script>
+<script src="../../../../engine/draw.js"></script>
+<script src="../../../../engine/scene.js"></script>
+<script src="../../../../engine/widgets/submersion.js"></script>
+<script src="../../../../engine/widgets/magnifier.js"></script>
+<script>
+const { getVariantSeed, loadLabSchema, saveProgress, loadProgress } = window.LabEngine;
+
+const seed = getVariantSeed();
+let lab, state = { tableA: {}, tableB: {} };
+
+async function init() {
+  lab = await loadLabSchema('lab.json');
+  state = Object.assign({ tableA: {}, tableB: {} }, loadProgress(lab.id));
+  render();
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="header">
+      <span class="variant-badge">Вариант: ${seed}</span>
+      <div class="num">Лабораторная работа № 2</div>
+      <h1>${lab.title}</h1>
+    </div>
+
+    <div class="section">
+      <h2>Цель</h2>
+      <p>${lab.goal}</p>
+      <p class="small-note">Учебник: ${lab.textbookRef}</p>
+    </div>
+
+    <div class="section">
+      <h2>Оборудование и материалы</h2>
+      <ul class="equipment-list">${lab.equipment.map(e => `<li>${e}</li>`).join('')}</ul>
+    </div>
+
+    <div class="section">
+      <h2>Как устроен опыт</h2>
+      <p class="small-note">Тела на столе имеют неправильную форму (гайка, болт, шарик) — линейкой их объём не измерить. Вместо этого используется то, что тело, погружённое в воду, вытесняет объём воды, равный своему собственному объёму. Ниже — два способа увидеть эту вытесненную воду.</p>
+      <div class="method-diagram">
+        <div class="method-step">
+          <div class="method-num">1</div>
+          <p><b>Способ А — по разности уровней.</b> Наливаем воду в мензурку — это уровень V₁. Погружаем тело — вода поднимается до V₂. Вытесненный объём равен разности: V<sub>т</sub> = V₂ − V₁.</p>
+        </div>
+        <div class="method-step">
+          <div class="method-num">2</div>
+          <p><b>Способ Б — отливной сосуд.</b> Сосуд налит вровень с краем трубки. Любое погружённое тело выливает через трубку ровно столько воды, каков его объём — её остаётся собрать и измерить: V<sub>т</sub> = V<sub>ж</sub>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <span class="bar">Способ А. Определение объёма по разности уровней воды</span>
+      <div class="step">
+        <div class="instr"><span class="badge-num">1</span>Определите цену деления измерительного цилиндра и запишите ниже.</div>
+        <div class="widget-box">
+          <label>Цена деления (мл): <input type="number" step="0.1" id="a-division" style="width:80px"></label>
+          <span class="status" id="a-division-status"></span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="instr"><span class="badge-num">2</span>Цилиндр уже наполнен водой на <sup>2</sup>&frasl;<sub>3</sub> объёма — это V₁. Перетащите мышью тело со стола и отпустите его над цилиндром: тело погрузится, а уровень воды поднимется до V₂. Считайте оба значения по шкале и вычислите объём тела как их разность.</div>
+        <div class="scene-wrap"><div id="scene-a" class="scene-box"></div></div>
+        <div class="no-print"><button class="secondary" id="magnifier-a-btn">🔍 Лупа</button></div>
+      </div>
+      <span class="bar">Таблица 1.4 — объём тела по разности уровней</span>
+      <table id="table-a">
+        <thead><tr><th>Исследуемое тело</th><th>Объём воды V₁, мл</th><th>Объём воды и тела V₂, мл</th><th>Объём тела V<sub>т</sub>, мл</th></tr></thead>
+        <tbody>
+          ${lab.bodies.map((b,i)=>`<tr data-body="${b.id}">
+            <td>${i+1}. ${b.name}</td>
+            <td><input type="number" step="0.1" data-a="v1" style="width:70px"></td>
+            <td><input type="number" step="0.1" data-a="v2" style="width:70px"></td>
+            <td class="a-vt"></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="no-print"><button class="secondary" id="reset-a-btn">Сбросить способ А</button></div>
+    </div>
+
+    <div class="section">
+      <span class="bar">Способ Б. Определение объёма отливным сосудом</span>
+      <div class="step">
+        <div class="instr"><span class="badge-num">1</span>Отливной сосуд слева уже наполнен водой ровно до отверстия трубки — так и должно быть по условию опыта. Перетащите то же тело мышью в сосуд: вытесненная вода перельётся по трубке в пустой цилиндр справа. Считайте объём вылившейся воды прямо со шкалы — это и есть объём тела.</div>
+        <div class="scene-wrap"><div id="scene-b" class="scene-box"></div></div>
+        <div class="no-print"><button class="secondary" id="magnifier-b-btn">🔍 Лупа</button></div>
+      </div>
+      <span class="bar">Таблица 1.5 — объём тела отливным сосудом</span>
+      <table id="table-b">
+        <thead><tr><th>Исследуемое тело</th><th>Объём вылившейся жидкости V<sub>ж</sub>, мл</th></tr></thead>
+        <tbody>
+          ${lab.bodies.map((b,i)=>`<tr data-body="${b.id}"><td>${i+1}. ${b.name}</td><td class="b-vzh"></td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="no-print"><button class="secondary" id="reset-b-btn">Сбросить способ Б</button></div>
+    </div>
+
+    <div class="section">
+      <h2>Выводы</h2>
+      <textarea id="conclusion" placeholder="Сравните результаты, полученные двумя способами. Совпадают ли они в пределах погрешности прибора?">${state.conclusion || ''}</textarea>
+    </div>
+
+    <div class="footer-actions no-print">
+      <button id="save-btn">Сохранить прогресс</button>
+      <a class="link-row" href="worksheet.html${location.search}"><button class="secondary">Перейти к письменному рабочему листу →</button></a>
+    </div>
+  `;
+
+  buildSceneA();
+  buildSceneB();
+
+  document.getElementById('save-btn').addEventListener('click', () => {
+    state.conclusion = document.getElementById('conclusion').value;
+    saveProgress(lab.id, state);
+    alert('Прогресс сохранён локально в этом браузере.');
+  });
+}
+
+let sceneA, sceneB, submersion;
+
+async function buildSceneA() {
+  const el = document.getElementById('scene-a');
+  sceneA = await LabScene.createScene(el, { height: 280 });
+  if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugSceneA = sceneA;
+  attachBoth();
+
+  const magA = LabMagnifierWidget.attachMagnifier(sceneA, {
+    zoom: 2.2, radius: 48,
+    startX: sceneA.width * 0.62 + 40, startY: sceneA.height - 110,
+  });
+  sceneA.onChange(() => magA.refresh());
+  if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugMagA = magA;
+  const magABtn = document.getElementById('magnifier-a-btn');
+  magABtn.addEventListener('click', () => { magA.toggle(); magABtn.classList.toggle('active', magA.isVisible()); });
+
+  document.getElementById('reset-a-btn').addEventListener('click', () => {
+    submersion.resetAll();
+    document.querySelectorAll('#table-a input').forEach(el => { el.value = ''; });
+    document.querySelectorAll('#table-a .a-vt').forEach(el => { el.textContent = ''; });
+  });
+}
+
+async function buildSceneB() {
+  const el = document.getElementById('scene-b');
+  sceneB = await LabScene.createScene(el, { height: 280 });
+  if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugSceneB = sceneB;
+  attachBoth();
+
+  const magB = LabMagnifierWidget.attachMagnifier(sceneB, {
+    zoom: 2.2, radius: 48,
+    startX: sceneB.width * 0.66 + 40, startY: sceneB.height - 110,
+  });
+  sceneB.onChange(() => magB.refresh());
+  if (window.__EXPOSE_SCENES_FOR_TEST__) window._debugMagB = magB;
+  const magBBtn = document.getElementById('magnifier-b-btn');
+  magBBtn.addEventListener('click', () => { magB.toggle(); magBBtn.classList.toggle('active', magB.isVisible()); });
+
+  document.getElementById('reset-b-btn').addEventListener('click', () => {
+    submersion.resetAll();
+    document.querySelectorAll('#table-b .b-vzh').forEach(el => { el.textContent = ''; });
+  });
+}
+
+// Обе сцены нужны одновременно, чтобы подключить единый виджет (тела в
+// способе А и способе Б независимы, но управляются одним attachSubmersionTask) —
+// подключаем его, как только обе сцены готовы, независимо от порядка их
+// асинхронной инициализации.
+function attachBoth() {
+  if (!sceneA || !sceneB || submersion) return;
+  const rng = LabEngine.mulberry32(seed + 1);
+
+  submersion = LabSubmersionWidget.attachSubmersionTask(lab, sceneA, sceneB, rng, {
+    onSinkA(bodyId, v1, v2) {
+      const row = document.querySelector(`#table-a tr[data-body="${bodyId}"]`);
+      if (!row) return;
+      row.querySelector('[data-a="v1"]').value = v1.toFixed(1);
+      row.querySelector('[data-a="v2"]').value = v2.toFixed(1);
+      updateVt(row);
+    },
+    onPourB(bodyId, volumeMl) {
+      const row = document.querySelector(`#table-b tr[data-body="${bodyId}"]`);
+      if (!row) return;
+      row.querySelector('.b-vzh').textContent = volumeMl.toFixed(1);
+    },
+  });
+
+  document.querySelectorAll('#table-a input[data-a]').forEach((input) => {
+    input.addEventListener('input', () => updateVt(input.closest('tr')));
+  });
+}
+
+function updateVt(row) {
+  const v1 = parseFloat(row.querySelector('[data-a="v1"]').value);
+  const v2 = parseFloat(row.querySelector('[data-a="v2"]').value);
+  const cell = row.querySelector('.a-vt');
+  if (isNaN(v1) || isNaN(v2)) { cell.textContent = ''; return; }
+  cell.textContent = (v2 - v1).toFixed(1);
+}
+
+init();
+</script>
+</body>
+</html>
