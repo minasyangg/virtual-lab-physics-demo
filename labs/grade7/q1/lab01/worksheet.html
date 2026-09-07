@@ -4,19 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Рабочий лист — Лаба №1</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../../../../styles.css">
 </head>
 <body>
+<nav class="breadcrumbs no-print"><a href="../../../../index.html">← К каталогу лабораторных работ</a></nav>
 <div class="sheet" id="app">Загрузка...</div>
 
-<script src="engine.js"></script>
+<script src="../../../../engine.js"></script>
 <script>
 const { getVariantSeed, loadLabSchema, saveProgress, loadProgress } = window.LabEngine;
 const seed = getVariantSeed();
 let lab, answers;
 
 async function init() {
-  lab = await loadLabSchema('lab-01-scale-division.json');
+  lab = await loadLabSchema('lab.json');
   answers = Object.assign({
     fio: '', klass: '', date: '',
     t11: {}, t12: {}, t13: {},
