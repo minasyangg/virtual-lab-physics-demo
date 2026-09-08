@@ -84,18 +84,21 @@
     // расположение предметов, вода, состояние лупы остаются как есть,
     // потому что это одни и те же Pixi-объекты, просто иначе увеличенные.
     //
-    // Масштаб по X и Y считается НЕЗАВИСИМО (cover, не contain): стол
-    // должен реально заполнять весь экран в аудитории, без пустых полей
-    // по краям — небольшое искажение пропорций (мензурка чуть шире/уже)
-    // для этого приемлемая цена, а вот стол размером в четверть экрана —
-    // нет. Именно так и нужно, когда цель — видимость с задних парт.
+    // Масштаб ОДИН И ТОТ ЖЕ для X и Y — пропорции предметов не искажаются
+    // (независимые scale.x/scale.y растягивали шарики в эллипсы и ломали
+    // раскладку). Вписываем стол целиком в окно (contain по обеим осям —
+    // без overflow ни по X, ни по Y) и берём под canvas ровно ту площадь,
+    // что реально занял стол при этом масштабе — так центрирование через
+    // CSS flex даёт симметричные поля вместо лишнего пустого пространства
+    // вокруг canvas большего размера.
     scene.setViewportSize = function (viewW, viewH) {
-      app.renderer.resize(viewW, viewH);
-      app.stage.scale.set(viewW / width, viewH / height);
+      const fit = Math.min(viewW / width, viewH / height);
+      app.renderer.resize(width * fit, height * fit);
+      app.stage.scale.set(fit);
     };
     scene.resetViewportSize = function () {
       app.renderer.resize(width, height);
-      app.stage.scale.set(1, 1);
+      app.stage.scale.set(1);
     };
 
     return scene;

@@ -40,7 +40,10 @@ button.secondary.active{background:var(--accent);color:#fff;}
   display:flex;align-items:center;justify-content:center;
 }
 .scene-wrap.scene-fullscreen::before{
-  content:"";position:fixed;inset:0;background:#ece6da;z-index:-1;
+  /* Тёмный фон вокруг вписанного стола — контрастирует со светлой
+     столешницей, чтобы поля читались как рамка экрана, а не как
+     пустое продолжение стола. */
+  content:"";position:fixed;inset:0;background:#20182f;z-index:-1;
 }
 .scene-wrap.scene-fullscreen .scene-box{width:auto;min-height:0;}
 .scene-wrap.scene-fullscreen .scene-box canvas{width:auto;}
