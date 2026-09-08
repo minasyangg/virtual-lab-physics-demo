@@ -111,6 +111,15 @@
             sceneA.notifyChanged();
           },
         });
+
+        // Двойной клик увеличивает тело, чтобы рассмотреть его форму. На
+        // физику это не влияет: объём тела берётся из lab.json, а не из его
+        // размера на экране, поэтому увеличенная гайка вытесняет ровно
+        // столько же воды.
+        bc._labZoom = LabZoomable.makeZoomable(bc, {
+          zoom: 2.2,
+          onChange: () => sceneA.notifyChanged(),
+        });
       });
 
       function trySink(bc) {
@@ -206,19 +215,21 @@
       catchContainer._labLevelFrac = 0;
       layers.objects.addChild(catchContainer);
 
-      // Трубка, физически соединяющая носик отливного сосуда с горлышком
-      // мензурки-приёмника — вода видимо течёт по ней, а не телепортируется
-      // между сосудами. Оба конца переведены в координаты layers.objects
-      // (общий родитель обоих сосудов, без собственного масштаба/поворота,
-      // поэтому позиция+pivot достаточно — toGlobal/toLocal не нужны).
+      // Трубка, физически соединяющая носик отливного сосуда с боковой
+      // стенкой мензурки-приёмника, — простой прямой шланг на одной высоте
+      // (уровень носика), как переливная трубка между сообщающимися
+      // сосудами, без спусков и заходов сверху. Оба конца переведены в
+      // координаты layers.objects (общий родитель обоих сосудов, без
+      // собственного масштаба/поворота, поэтому позиция+pivot достаточно).
       const spoutTipLocal = vessel._labSpoutTip; // локально в vessel, до pivot/position
+      const tubeY = vessel.y - vessel.pivot.y + spoutTipLocal.y;
       const tubeFrom = {
         x: vessel.x - vessel.pivot.x + spoutTipLocal.x,
-        y: vessel.y - vessel.pivot.y + spoutTipLocal.y,
+        y: tubeY,
       };
       const tubeTo = {
-        x: catchContainer.x - catchContainer.pivot.x + catchCylW / 2,
-        y: catchContainer.y - catchContainer.pivot.y,
+        x: catchContainer.x - catchContainer.pivot.x,
+        y: tubeY,
       };
       const tube = LabDraw.drawTube(tubeFrom, tubeTo, { radius: 4 });
       layers.tools.addChild(tube); // под сосудами и телами (layers.objects рисуется поверх)
@@ -247,6 +258,11 @@
             tryPour(bc);
             sceneB.notifyChanged();
           },
+        });
+
+        bc._labZoom = LabZoomable.makeZoomable(bc, {
+          zoom: 2.2,
+          onChange: () => sceneB.notifyChanged(),
         });
       });
 

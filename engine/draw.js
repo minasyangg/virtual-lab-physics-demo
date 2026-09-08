@@ -448,41 +448,30 @@
   }
 
   // ---- Соединительная трубка между сосудами ---------------------------
-  // Рисует изогнутую трубку от точки `from` до точки `to` (обе — {x,y} в
-  // координатах общего родителя, куда добавляется результат) — путь идёт
-  // вниз от начальной точки, горизонтально под уровнем стола, и вверх к
-  // конечной, как настоящий соединительный шланг между приборами.
-  // Возвращает { container, path } — path нужен flowAnimator'у, чтобы
-  // знать, вдоль какой кривой пускать «капли».
+  // Прямая трубка от точки `from` до точки `to` (обе — {x,y} в координатах
+  // общего родителя) — простой прямой отрезок на уровне носика, как
+  // переливной шланг между двумя сообщающимися сосудами. Никаких спусков
+  // под стол и заходов сверху — это визуально путало (провода вниз и вверх
+  // читались как лишние трубы), тогда как в реальном опыте отливной сосуд
+  // просто соединён с приёмником напрямую.
+  // Возвращает container с полем _labTubePath — путь нужен createTubeFlow,
+  // чтобы знать, вдоль какой линии показывать поток.
   function drawTube(from, to, opts) {
     opts = opts || {};
     const r = opts.radius || 4; // толщина трубки (половина)
-    const dropY = opts.dropY !== undefined ? opts.dropY : Math.max(from.y, to.y) + 30;
-
-    // Путь — ломаная со скруглёнными изгибами: вниз от носика,
-    // горизонтально, строго вертикально вверх в приёмный сосуд (последний
-    // отрезок без бокового смещения — иначе труба заходит в горлышко
-    // наискось и торчит «хвостиком» за контур сосуда).
-    const bend = 14;
     const path = [
       { x: from.x, y: from.y },
-      { x: from.x + bend, y: dropY - bend },
-      { x: from.x + bend, y: dropY },
-      { x: to.x, y: dropY },
       { x: to.x, y: to.y },
     ];
 
     const container = new PIXI.Container();
     const g = new PIXI.Graphics();
-    // Труба рисуется как единая толстая линия по всем сегментам пути —
-    // проще и надёжнее, чем ручная заливка контура, и даёт аккуратные
-    // скруглённые стыки в местах изгиба благодаря join:'round'.
     g.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
-    g.stroke({ width: r * 2 + 3, color: 0x9db3c2, alpha: 0.9, join: 'round', cap: 'round' });
+    g.lineTo(path[1].x, path[1].y);
+    g.stroke({ width: r * 2 + 3, color: 0x9db3c2, alpha: 0.9, cap: 'round' });
     g.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
-    g.stroke({ width: r * 2, color: 0xdfeaf2, alpha: 0.5, join: 'round', cap: 'round' });
+    g.lineTo(path[1].x, path[1].y);
+    g.stroke({ width: r * 2, color: 0xdfeaf2, alpha: 0.5, cap: 'round' });
 
     container.addChild(g);
     container._labTubePath = path;

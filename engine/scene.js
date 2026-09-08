@@ -113,7 +113,11 @@
     let dragging = false;
     let start = { x: 0, y: 0 };
     let origin = { x: 0, y: 0 };
-    const baseScale = target.scale.x || 1;
+    // Масштаб «в покое» запоминается на момент взятия предмета, а не один раз
+    // при создании: предмет мог быть увеличен двойным кликом (zoomable.js), и
+    // после перетаскивания он должен вернуться к своему текущему размеру, а не
+    // к исходному.
+    let restScale = target.scale.x || 1;
 
     function toLocalParent(globalPoint) {
       return target.parent.toLocal(globalPoint);
@@ -126,10 +130,11 @@
       start = { x: p.x, y: p.y };
       origin = { x: target.x, y: target.y };
       target.parent.addChild(target); // поднять поверх остальных объектов слоя
+      restScale = target.scale.x || 1;
       // Лёгкое увеличение — едва заметное «взял в руку», но не настолько
       // сильное, чтобы сместить видимые края предмета относительно шкалы
       // и мешать точному прицеливанию (это измерительный инструмент, не игра).
-      target.scale.set(baseScale * 1.02);
+      target.scale.set(restScale * 1.02);
       if (target._labShadow) target._labShadow.alpha = 1.4;
       if (callbacks.onDragStart) callbacks.onDragStart(target);
     });
@@ -146,7 +151,7 @@
       if (!dragging) return;
       dragging = false;
       target.cursor = 'grab';
-      target.scale.set(baseScale);
+      target.scale.set(restScale);
       if (target._labShadow) target._labShadow.alpha = 1;
       if (callbacks.onDragEnd) callbacks.onDragEnd(target);
     }
