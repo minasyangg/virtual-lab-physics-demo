@@ -1,10 +1,12 @@
 // engine/widgets/fullscreen.js
 // Кнопка «На весь экран» для сцены лабораторного стола. Не пересоздаёт
 // сцену и не трогает ни один объект на ней — просто временно растягивает
-// canvas на весь экран (CSS-оверлей + scene.setViewportSize из scene.js,
-// который делает renderer.resize + stage.scale). Поэтому положение
-// предметов, уровень воды, состояние лупы переживают вход и выход из
-// полноэкранного режима без изменений — это те же самые Pixi-объекты.
+// canvas НА ВЕСЬ экран (CSS-оверлей + scene.setViewportSize из scene.js,
+// который делает renderer.resize + stage.scale по X и Y независимо —
+// без пустых полей по краям, специально для показа в аудитории с задних
+// парт). Положение предметов, уровень воды, состояние лупы переживают
+// вход и выход из полноэкранного режима без изменений — это те же самые
+// Pixi-объекты, просто иначе растянутые.
 
 (function () {
 
@@ -25,7 +27,7 @@
 
     function applySize() {
       if (!expanded) return;
-      scene.setViewportSize(window.innerWidth - 32, window.innerHeight - 32);
+      scene.setViewportSize(window.innerWidth, window.innerHeight);
     }
 
     function expand() {

@@ -22,6 +22,15 @@
 
   function buildBody(body, size) {
     const c = LabDraw.drawSolidBody(body.shape, size);
+    // Реальные границы одной только фигуры тела — до того, как в контейнер
+    // добавлены тень и подпись (те простираются намного ниже и шире и
+    // испортили бы измерение «где у тела физический низ»). У разных форм
+    // (шестигранная гайка/головка болта со стержнем/шар) низ не совпадает
+    // с геометрическим центром квадрата size×size, поэтому мерить нужно
+    // именно так, а не приближением size/2.
+    const bodyLocalBounds = c.getLocalBounds();
+    c._labBottomOffset = bodyLocalBounds.y + bodyLocalBounds.height - size / 2; // расстояние от pivot (центра) до нижнего края
+
     const shadow = LabDraw.dropShadow(size, size * 0.4, 0.3);
     shadow.position.set(size / 2, size + 4);
     c.addChildAt(shadow, 0);
@@ -90,6 +99,7 @@
       layers.objects.addChild(cylContainer);
 
       let sunkVolume = 0; // суммарный объём уже утопленных тел — уровень растёт по мере опытов
+      let sunkStackTop = 0; // реальная высота стопки утопленных тел от дна цилиндра (в px, с учётом их масштаба)
       const sunkIds = new Set();
       const bodies = [];
 
@@ -134,11 +144,20 @@
         const v2 = cyl.minMl + startFrac * (cyl.maxMl - cyl.minMl) + sunkVolume;
         const targetFrac = (v2 - cyl.minMl) / (cyl.maxMl - cyl.minMl);
 
-        // Тело плавно уходит под воду и «прилипает» ко дну цилиндра —
-        // визуально остаётся видно, что оно погружено, а не исчезло.
+        // Тело плавно уходит под воду и «прилипает» ко дну цилиндра — оно
+        // не должно проваливаться сквозь настоящее дно, даже если увеличено
+        // двойным кликом (zoomable.js меняет bc.scale) и даже если его
+        // нижний край не совпадает с геометрическим центром (у болта из-за
+        // стержня — _labBottomOffset посчитан по факту формы). Тела
+        // складываются стопкой на реальной высоте предыдущих.
+        const bottomOffset = bc._labBottomOffset * bc.scale.x;
+        const stackTop = sunkStackTop; // высота уже занятой стопки от дна
+        const centerY = cylH - stackTop - bottomOffset;
+        sunkStackTop = stackTop + bottomOffset * 2;
+
         const fromFrac = cylContainer._labLevelFrac;
-        const targetLocal = { x: cylW / 2 - bc._labSize / 2, y: cylH - bc._labSize * (0.5 + 0.12 * sunkIds.size) };
-        const targetGlobal = cylContainer.toGlobal(new PIXI.Point(targetLocal.x + bc._labSize / 2, targetLocal.y + bc._labSize / 2));
+        const targetLocal = { x: cylW / 2, y: centerY };
+        const targetGlobal = cylContainer.toGlobal(new PIXI.Point(targetLocal.x, targetLocal.y));
         const startPos = { x: bc.x, y: bc.y };
         const startParent = bc.parent;
         const localTarget = startParent.toLocal(targetGlobal);
@@ -168,6 +187,7 @@
           const copy = buildBody(lab.bodies.find(b => b.id === bc._labBodyId), bodySize);
           copy.pivot.set(bodySize / 2, bodySize / 2);
           copy.position.set(bc.x, bc.y);
+          copy.scale.set(bc.scale.x); // копия тела должна выглядеть так же увеличенной, как под лупой
           copy.alpha = bc.alpha;
           root.addChild(copy);
         });
@@ -175,6 +195,7 @@
 
       sceneA._resetAll = () => {
         sunkVolume = 0;
+        sunkStackTop = 0;
         sunkIds.clear();
         cylContainer._labWater.setLevel(startFrac);
         cylContainer._labLevelFrac = startFrac;
@@ -236,6 +257,7 @@
       const tubeFlow = LabDraw.createTubeFlow(tube, { radius: 4 });
 
       let pouredVolume = 0;
+      let pouredStackTop = 0; // реальная высота стопки утопленных тел от дна сосуда
       let currentFlowT = 0; // текущее наполнение видимой трубки — нужно копии для лупы
       const pouredIds = new Set();
       const bodies = [];
@@ -280,8 +302,14 @@
         // Тело уходит в сосуд (тонет к его дну), одновременно из носика в
         // мензурку «льётся» вытесненный объём — та же логика переливания,
         // что и в задании 1, но управляется погружением, а не кликом.
-        const targetLocal = { x: vesselW / 2 - bc._labSize / 2, y: vesselH - bc._labSize * 0.6 };
-        const targetGlobal = vessel.toGlobal(new PIXI.Point(targetLocal.x + bc._labSize / 2, targetLocal.y + bc._labSize / 2));
+        // Нижний край считается по фактической форме тела и его актуальному
+        // масштабу (может быть увеличено двойным кликом), чтобы не
+        // проваливаться сквозь дно; тела складываются стопкой.
+        const bottomOffset = bc._labBottomOffset * bc.scale.x;
+        const stackTop = pouredStackTop;
+        pouredStackTop = stackTop + bottomOffset * 2;
+        const targetLocal = { x: vesselW / 2, y: vesselH - stackTop - bottomOffset };
+        const targetGlobal = vessel.toGlobal(new PIXI.Point(targetLocal.x, targetLocal.y));
         const startPos = { x: bc.x, y: bc.y };
         const localTarget = bc.parent.toLocal(targetGlobal);
 
@@ -341,6 +369,7 @@
           const copy = buildBody(lab.bodies.find(b => b.id === bc._labBodyId), bodySize);
           copy.pivot.set(bodySize / 2, bodySize / 2);
           copy.position.set(bc.x, bc.y);
+          copy.scale.set(bc.scale.x);
           copy.alpha = bc.alpha;
           root.addChild(copy);
         });
@@ -348,6 +377,7 @@
 
       sceneB._resetAll = () => {
         pouredVolume = 0;
+        pouredStackTop = 0;
         pouredIds.clear();
         catchContainer._labWater.setLevel(0);
         catchContainer._labLevelFrac = 0;

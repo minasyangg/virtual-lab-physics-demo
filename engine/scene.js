@@ -83,14 +83,19 @@
     // растянуть корневой контейнер (stage.scale) на тот же коэффициент —
     // расположение предметов, вода, состояние лупы остаются как есть,
     // потому что это одни и те же Pixi-объекты, просто иначе увеличенные.
+    //
+    // Масштаб по X и Y считается НЕЗАВИСИМО (cover, не contain): стол
+    // должен реально заполнять весь экран в аудитории, без пустых полей
+    // по краям — небольшое искажение пропорций (мензурка чуть шире/уже)
+    // для этого приемлемая цена, а вот стол размером в четверть экрана —
+    // нет. Именно так и нужно, когда цель — видимость с задних парт.
     scene.setViewportSize = function (viewW, viewH) {
-      const fit = Math.min(viewW / width, viewH / height);
-      app.renderer.resize(width * fit, height * fit);
-      app.stage.scale.set(fit);
+      app.renderer.resize(viewW, viewH);
+      app.stage.scale.set(viewW / width, viewH / height);
     };
     scene.resetViewportSize = function () {
       app.renderer.resize(width, height);
-      app.stage.scale.set(1);
+      app.stage.scale.set(1, 1);
     };
 
     return scene;
@@ -105,12 +110,18 @@
   // Во время перетаскивания предмет визуально «приподнимается»: лёгкое
   // увеличение масштаба + усиленная тень (если у target есть свойство
   // ._labShadow — PIXI.Graphics тени, привязанной к тому же родителю).
+  //
+  // Тень видна только на исходной, «нетронутой» раскладке стола — как
+  // намёк ученику, что предмет можно взять. Как только предмет впервые
+  // взяли мышью, тень гаснет насовсем (а не просто на время переноса):
+  // на новом, уже выбранном учеником месте она была бы лишним шумом.
   function makeDraggable(app, target, callbacks) {
     callbacks = callbacks || {};
     target.eventMode = 'static';
     target.cursor = 'grab';
 
     let dragging = false;
+    let everDragged = false;
     let start = { x: 0, y: 0 };
     let origin = { x: 0, y: 0 };
     // Масштаб «в покое» запоминается на момент взятия предмета, а не один раз
@@ -135,7 +146,9 @@
       // сильное, чтобы сместить видимые края предмета относительно шкалы
       // и мешать точному прицеливанию (это измерительный инструмент, не игра).
       target.scale.set(restScale * 1.02);
-      if (target._labShadow) target._labShadow.alpha = 1.4;
+      // Усилить тень имеет смысл только пока она вообще видна — на самом
+      // первом захвате предмета с исходного места на столе.
+      if (target._labShadow && !everDragged) target._labShadow.alpha = 1.4;
       if (callbacks.onDragStart) callbacks.onDragStart(target);
     });
 
@@ -152,7 +165,10 @@
       dragging = false;
       target.cursor = 'grab';
       target.scale.set(restScale);
-      if (target._labShadow) target._labShadow.alpha = 1;
+      // Тень гаснет насовсем после первого взятия предмета — обратно к
+      // видимой она уже не возвращается, даже при повторном drag.
+      if (target._labShadow) target._labShadow.alpha = 0;
+      everDragged = true;
       if (callbacks.onDragEnd) callbacks.onDragEnd(target);
     }
     app.stage.on('pointerup', endDrag);
